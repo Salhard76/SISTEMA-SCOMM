@@ -7,7 +7,6 @@
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
   <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -24,8 +23,8 @@
         <button class="tab" id="pdfTab" role="tab" aria-selected="false" aria-controls="pdfPanel" type="button">Importa da PDF Sisal</button>
       </div>
       <div id="manualPanel" role="tabpanel" aria-labelledby="manualTab">
-        <label for="manualInput">Una partita per riga</label>
-        <p class="help">Formato consigliato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00</code>. Per ogni partita puoi poi scegliere gli esiti disponibili.</p>
+        <label for="manualInput">Una partita per riga (massimo 10 partite caricate)</label>
+        <p class="help">Massimo 10 partite per sessione e massimo 2 esiti selezionabili per partita. Se incolli più di 10 partite, vengono caricate solo le prime 10 riconosciute. Formato consigliato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00</code>. Per ogni partita puoi poi scegliere gli esiti disponibili.</p>
         <textarea id="manualInput" rows="5" spellcheck="false" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;Napoli - Torino; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
         <div class="button-row"><button id="parseManual" class="button primary" type="button">Carica partite</button><button id="clearInput" class="button secondary" type="button">Svuota</button></div>
       </div>
@@ -62,6 +61,10 @@
         <div class="field"><label for="maxColumns">Massimo colonne generate</label><select id="maxColumns"><option value="1024">1.024</option><option value="4096">4.096</option><option value="16384">16.384</option><option value="32768" selected>32.768</option><option value="65536">65.536</option></select></div>
         <button id="generate" class="button primary" type="button">Genera sistema</button>
         <button id="reset" class="button danger" type="button">Reset completo</button>
+      </div>
+      <div class="bonus-panel">
+        <label class="bonus-toggle"><input id="sisalBonus" type="checkbox" checked> Stima Bonus Multipla Sisal</label>
+        <p class="help">Stima indicativa: considera eventi con quota almeno 1,25 e applica un incremento composto del 4% per ogni evento idoneo dal quinto, con tetto indicativo del 177%. Il bonus ufficiale può dipendere dal tipo di biglietto e dalle condizioni Sisal; verifica sempre il valore mostrato nel carrello.</p>
       </div>
       <div id="summary" class="summary" aria-live="polite">Seleziona almeno una partita e i relativi esiti.</div>
       <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printTable" class="button secondary" type="button" disabled>Stampa tabella</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>

@@ -34,3 +34,9 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. Mer
 6. Usa “Stampa tabella”: la stampa deve nascondere input e pannelli non pertinenti.
 7. Prova l'URL Sisal: se CORS lo consente, il parser prova a importare solo le quattro competizioni consentite.
 8. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio d'errore e l'input manuale deve restare utilizzabile.
+
+## Limiti e uso da smartphone
+L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, griglia a due colonne quando lo spazio lo consente e tabella risultati scorrevole in orizzontale. Il limite di 10 partite viene applicato anche al ripristino della sessione; ogni doppia ammette al massimo 2 esiti.
+
+## Stima Bonus Multipla Sisal
+L'interfaccia include una stima facoltativa del Bonus Multipla. La stima considera eventi con quota almeno 1,25 e applica un fattore composto del 4% dal quinto evento idoneo, con limite indicativo del 177%. Le FAQ Sisal descrivono, ad esempio, circa +8% per 6 eventi e +12% per 7 eventi idonei. Questa è una simulazione informativa: non certifica che il bonus venga riconosciuto alle singole colonne di un sistema. Controllare sempre il bonus effettivamente mostrato da Sisal sul biglietto prima di confermare. Fonte: https://www.sisal.it/scommesse-matchpoint/faq

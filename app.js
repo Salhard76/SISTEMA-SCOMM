@@ -7,6 +7,13 @@ import { exportCSV, exportText, stampaTabella } from './js/exporter.js';
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false };
 const savedKey = 'sistema-scommesse-builder-v1';
+const MAX_MATCHES = 10;
+const MAX_CHOICES_PER_MATCH = 2;
+let filterUpdateTimeout = null;
+const debouncedUpdateCounter = () => {
+  clearTimeout(filterUpdateTimeout);
+  filterUpdateTimeout = setTimeout(updateCounter, 300);
+};
 
 function status(message, type = '') {
   const el = $('status'); el.textContent = message; el.className = `status ${type}`.trim();
@@ -23,7 +30,7 @@ function restoreState() {
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
     $('maxColumns').value = data.maxColumns || '32768';
-    if (Array.isArray(data.matches)) state.matches = data.matches;
+    if (Array.isArray(data.matches)) state.matches = data.matches.slice(0, MAX_MATCHES).map(m => ({ ...m, selezionati: (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH) }));
     document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
   } catch { /* Stato salvato corrotto: partenza pulita. */ }
 }
@@ -43,7 +50,7 @@ function renderMatches() {
   if (!state.matches.length) { root.innerHTML = ''; updateCounter(); return; }
   root.innerHTML = state.matches.map((m, mi) => {
     const groups = outcomeGroups(m);
-    const selected = m.selezionati || [];
+    const selected = (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH);
     const fixed = m.tipo === 'fissa';
     return `<article class="match-card" data-match="${escapeHtml(m.id)}">
       <div class="match-top"><div><div class="match-name">${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</div><div class="match-meta">${escapeHtml([m.competizione,m.data,m.ora].filter(Boolean).join(' · ') || 'Competizione non specificata')}</div></div>
@@ -53,7 +60,7 @@ function renderMatches() {
         const checked = selected.includes(key);
         return `<div class="outcome ${checked?'':'disabled'}"><label><input type="checkbox" data-match-id="${escapeHtml(m.id)}" data-outcome-key="${escapeHtml(key)}" ${checked?'checked':''}><span>${escapeHtml(o.label)}</span></label><span class="odd">${formatQuota(o.quota)}</span></div>`;
       }).join('')}</div>`).join('')}
-      <p class="match-meta">Seleziona un esito per una fissa o due esiti per una doppia. Gli esiti selezionati definiscono le alternative del sistema.</p>
+      <p class="match-meta">Massimo 2 scelte per partita. Una fissa usa 1 esito; una doppia usa 2 alternative.</p>
     </article>`;
   }).join('');
   updateCounter();
@@ -116,16 +123,31 @@ function renderTable() {
     return;
   }
   const totalStake = cols.length * stake;
-  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno teorico per colonna: ${formatEuro(vincitaMinima(cols, stake))} – ${formatEuro(vincitaMassima(cols, stake))}. Il ritorno include la puntata; profitto teorico = ritorno meno puntata.`;
-  const rows = cols.map(c => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${formatEuro(c.quotaTotale*stake)}</td><td class="num">${formatEuro(profittoNetto(c.quotaTotale,stake))}</td></tr>`).join('');
-  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Ritorno lordo</th><th>Profitto teorico</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const bonusOn = $('sisalBonus')?.checked;
+  const bonusRate = c => {
+    // La FAQ Sisal descrive un fattore 1,04 dal quinto evento idoneo; stima limitata al 177%.
+    const eligible = c.esiti.filter(e => Number(e.quota) >= 1.25).length;
+    if (!bonusOn || eligible < 5) return 0;
+    return Math.min(Math.pow(1.04, eligible - 4) - 1, 1.77);
+  };
+  const bonuses = cols.map(bonusRate);
+  // Allego i campi calcolati alle colonne così CSV/testo esportano la stessa stima mostrata a video.
+  cols.forEach((c, i) => { c.bonusPercentuale = bonuses[i] * 100; c.ritornoStimato = c.quotaTotale * stake * (1 + bonuses[i]); c.profittoStimato = c.ritornoStimato - stake; });
+  const eligibleCount = bonuses.filter(x => x > 0).length;
+  const returns = cols.map((c, i) => c.quotaTotale * stake * (1 + bonuses[i]));
+  const minReturn = Math.min(...returns), maxReturn = Math.max(...returns);
+  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.`;
+  const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
+  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function loadMatches(matches, source) {
   if (!matches.length) { status('Nessuna partita riconosciuta. Controlla il formato o il contenuto del PDF.', 'error'); return; }
+  const totalFound = matches.length;
+  matches = matches.slice(0, MAX_MATCHES);
   state.matches = matches.map(m => ({ ...m, tipo:'fissa', selezionati:m.esiti.slice(0,1).map(o => `${o.market}:${o.outcome}`) }));
   state.lastGenerated = false;
   renderMatches(); saveState();
-  status(`${matches.length} partite caricate da ${source}. Seleziona gli esiti per ciascuna partita.`, 'success');
+  status(`${matches.length} di ${totalFound} partite caricate da ${source}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
   $('tableWrap').innerHTML = '<p class="empty-state">Premi “Genera sistema” per vedere le colonne.</p>';
 }
 function switchTab(which) {
@@ -166,7 +188,11 @@ $('importPdf').addEventListener('click', async () => {
     const buffer = await response.arrayBuffer();
     const matches = await parseSisalPdf(buffer);
     if (!matches.length) {
-      status('PDF letto, ma non sono state riconosciute righe con quote 1X2 nelle quattro competizioni richieste. Puoi inserire le quote manualmente nella sezione 1.', 'error');
+      state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+      renderMatches(); saveState();
+      $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
+      $('summary').textContent = 'Nessuna partita riconosciuta nel PDF.';
+      status('PDF letto, ma non sono state riconosciute righe con quote 1X2 nelle quattro competizioni richieste. Le partite precedenti sono state rimosse per evitare confusione. Puoi inserire le quote manualmente nella sezione 1.', 'error');
     } else loadMatches(matches, 'PDF (solo Serie A, Serie B, Champions League, Europa League)');
   } catch (error) {
     console.warn('Importazione PDF non riuscita:', error);
@@ -186,13 +212,21 @@ $('matches').addEventListener('change', event => {
       const extra = match.esiti.find(o => !match.selezionati.includes(`${o.market}:${o.outcome}`));
       if (extra) match.selezionati.push(`${extra.market}:${extra.outcome}`);
     }
+    match.selezionati = match.selezionati.slice(0, MAX_CHOICES_PER_MATCH);
     renderMatches(); saveState(); updateCounter(); return;
   }
   if (target.matches('input[type=checkbox][data-outcome-key]')) {
     const key = target.dataset.outcomeKey;
     if (target.checked) {
       if (match.tipo === 'fissa') match.selezionati = [key];
-      else if (!match.selezionati.includes(key)) match.selezionati.push(key);
+      else if (!match.selezionati.includes(key)) {
+        if (match.selezionati.length >= MAX_CHOICES_PER_MATCH) {
+          status(`Puoi selezionare al massimo ${MAX_CHOICES_PER_MATCH} esiti per partita.`, 'error');
+          renderMatches();
+          return;
+        }
+        match.selezionati.push(key);
+      }
     } else match.selezionati = match.selezionati.filter(x => x !== key);
     renderMatches(); saveState(); updateCounter();
   }
@@ -203,8 +237,9 @@ $('matches').addEventListener('click', event => {
   state.matches = state.matches.filter(m => m.id !== button.dataset.id);
   renderMatches(); saveState(); updateCounter();
 });
-for (const id of ['maxDraws','minDraws','maxGoals','highOdds','maxHigh','minQuota','maxQuota','minProb']) $(id).addEventListener('input', updateCounter);
+for (const id of ['maxDraws','minDraws','maxGoals','highOdds','maxHigh','minQuota','maxQuota','minProb']) $(id).addEventListener('input', debouncedUpdateCounter);
 $('stake').addEventListener('input', () => { saveState(); if (state.lastGenerated) renderTable(); });
+$('sisalBonus').addEventListener('change', () => { if (state.lastGenerated) renderTable(); });
 $('maxColumns').addEventListener('change', updateCounter);
 $('generate').addEventListener('click', () => {
   const built = buildBase();
