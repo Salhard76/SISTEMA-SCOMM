@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
+  <title>Sistema Scommesse Builder</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">SB</span><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="header-actions"><button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema">☾ Tema</button><a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </header>
+
+  <main class="container">
+    <section class="panel" aria-labelledby="input-title">
+      <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="input-title">Inserisci le quote</h2></div><span class="step-number">01</span></div>
+      <div class="tabs" role="tablist" aria-label="Metodo di inserimento">
+        <button class="tab active" id="manualTab" role="tab" aria-selected="true" aria-controls="manualPanel" type="button">Incolla manualmente</button>
+        <button class="tab" id="pdfTab" role="tab" aria-selected="false" aria-controls="pdfPanel" type="button">Importa da PDF Sisal</button>
+      </div>
+      <div id="manualPanel" role="tabpanel" aria-labelledby="manualTab">
+        <label for="manualInput">Una partita per riga</label>
+        <p class="help">Formato consigliato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00</code>. Per ogni partita puoi poi scegliere gli esiti disponibili.</p>
+        <textarea id="manualInput" rows="5" spellcheck="false" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;Napoli - Torino; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
+        <div class="button-row"><button id="parseManual" class="button primary" type="button">Carica partite</button><button id="clearInput" class="button secondary" type="button">Svuota</button></div>
+      </div>
+      <div id="pdfPanel" role="tabpanel" aria-labelledby="pdfTab" hidden>
+        <label for="pdfUrl">URL del PDF</label>
+        <input id="pdfUrl" type="url" value="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf">
+        <p class="help">Il browser può bloccare il download per CORS. In quel caso l'app non usa proxy e puoi inserire le quote manualmente.</p>
+        <button id="importPdf" class="button primary" type="button">Importa Quote da PDF</button>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
+      <div id="matches" class="matches"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="filters-title">
+      <div class="section-heading"><div><p class="eyebrow">PASSO 2</p><h2 id="filters-title">Filtri di riduzione</h2></div><span class="step-number">02</span></div>
+      <p class="help">I filtri si aggiornano mentre modifichi i valori. Le quote e le probabilità sono stime matematiche implicite, non previsioni dell'esito.</p>
+      <div class="filter-grid">
+        <div class="field"><label for="maxDraws">Pareggi massimi</label><input id="maxDraws" type="number" min="0" step="1" placeholder="Nessun limite"></div>
+        <div class="field"><label for="minDraws">Pareggi minimi</label><input id="minDraws" type="number" min="0" step="1" placeholder="Nessun limite"></div>
+        <div class="field"><label for="maxGoals">Goal Sì massimi</label><input id="maxGoals" type="number" min="0" step="1" placeholder="Nessun limite"></div>
+        <div class="field"><label for="highOdds">Soglia quote alte</label><input id="highOdds" type="number" min="1.01" step="0.01" value="3.00"></div>
+        <div class="field"><label for="maxHigh">Quote sopra soglia max</label><input id="maxHigh" type="number" min="0" step="1" placeholder="Nessun limite"></div>
+        <div class="field"><label for="minQuota">Quota totale minima</label><input id="minQuota" type="number" min="1" step="0.01" placeholder="Nessun limite"></div>
+        <div class="field"><label for="maxQuota">Quota totale massima</label><input id="maxQuota" type="number" min="1" step="0.01" placeholder="Nessun limite"></div>
+        <div class="field"><label for="minProb">Probabilità implicita minima (%)</label><input id="minProb" type="number" min="0" max="100" step="0.1" placeholder="Nessun limite"></div>
+      </div>
+      <div class="counter" aria-live="polite"><span>Colonne prima</span><strong id="beforeCount">0</strong><span class="arrow">→</span><span>Colonne dopo</span><strong id="afterCount">0</strong></div>
+    </section>
+
+    <section class="panel" aria-labelledby="generate-title">
+      <div class="section-heading"><div><p class="eyebrow">PASSO 3</p><h2 id="generate-title">Genera sistema</h2></div><span class="step-number">03</span></div>
+      <div class="generate-controls">
+        <div class="field"><label for="stake">Puntata per colonna (€)</label><input id="stake" type="number" min="0.01" step="0.01" value="0.10"></div>
+        <div class="field"><label for="maxColumns">Massimo colonne generate</label><select id="maxColumns"><option value="1024">1.024</option><option value="4096">4.096</option><option value="16384">16.384</option><option value="32768" selected>32.768</option><option value="65536">65.536</option></select></div>
+        <button id="generate" class="button primary" type="button">Genera sistema</button>
+        <button id="reset" class="button danger" type="button">Reset completo</button>
+      </div>
+      <div id="summary" class="summary" aria-live="polite">Seleziona almeno una partita e i relativi esiti.</div>
+      <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printTable" class="button secondary" type="button" disabled>Stampa tabella</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>
+      <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><p>Strumento di calcolo a scopo informativo. Le quote possono cambiare; non garantisce vincite. Scommetti responsabilmente e nel rispetto della normativa applicabile.</p></footer>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Sistema Scommesse Builder
+
+Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazione richiesta.
+
+1. Carica i file nella root di un repository GitHub.
+2. Apri **Settings → Pages**.
+3. Seleziona **Deploy from a branch**, branch `main`, cartella `/ (root)`.
+4. Salva e attendi la pubblicazione.
+5. Apri l'URL GitHub Pages assegnato al repository.
+6. Inserisci quote manuali o prova l'importazione PDF; CORS può impedirla.
+7. Seleziona gli esiti, imposta i filtri e premi **Genera sistema**.
+8. Esporta CSV/testo oppure stampa la tabella.
+
+## Formato manuale
+Una partita per riga. Formato consigliato:
+
+`23/10 20:45; Milan - Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00`
+
+Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. Mercati opzionali supportati: `O2.5=`, `U2.5=`, `Goal=`, `NoGoal=`. Le quote accettano punto o virgola decimale.
+
+## Limiti noti
+- L'importazione PDF dipende da CORS e dalla struttura del PDF Sisal, che può cambiare. Il parser tenta di leggere soltanto Serie A, Serie B, Champions League ed Europa League; righe non riconosciute vengono saltate. Il parser PDF è best-effort e non può garantire il riconoscimento di tutti i layout.
+- Le probabilità sono probabilità implicite derivate dalla quota, non probabilità reali o garanzie.
+- Il “ritorno lordo” è quota totale × puntata; il profitto teorico sottrae la puntata.
+- Per una fissa viene usato il primo esito selezionato; per una doppia ogni esito selezionato genera un'alternativa combinatoria.
+- Se il file viene aperto con `file://`, alcuni browser possono limitare i moduli JavaScript. Per provarlo in locale usa un server statico oppure GitHub Pages.
+
+## Test manuali suggeriti
+1. Inserisci `Milan - Roma; 2.10; 3.20; 3.60` e verifica che la partita venga caricata con quote 1X2.
+2. Aggiungi una seconda partita e seleziona una doppia per entrambe: il sistema deve produrre 4 colonne.
+3. Imposta “Pareggi massimi” a 0 e controlla che il contatore e la tabella si aggiornino.
+4. Imposta quota minima maggiore di tutte le colonne: il risultato deve essere vuoto senza errori.
+5. Esporta CSV e aprilo con un foglio di calcolo: devono esserci intestazioni e celle correttamente quotate.
+6. Usa “Stampa tabella”: la stampa deve nascondere input e pannelli non pertinenti.
+7. Prova l'URL Sisal: se CORS lo consente, il parser prova a importare solo le quattro competizioni consentite.
+8. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio d'errore e l'input manuale deve restare utilizzabile.
