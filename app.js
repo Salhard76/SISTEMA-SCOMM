@@ -116,7 +116,7 @@ function updateCounter() {
 function renderTable() {
   const cols = state.finalColumns;
   const stake = Math.max(0, Number($('stake').value) || 0);
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = cols.length === 0;
+  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0;
   if (!cols.length) {
     $('tableWrap').innerHTML = '<p class="empty-state">Nessuna colonna dopo i filtri. Modifica i filtri o le selezioni.</p>';
     $('summary').textContent = `Prima: ${state.rawColumns.length.toLocaleString('it-IT')} colonne · Dopo: 0 colonne · Puntata totale: ${formatEuro(0)}.`;
@@ -248,11 +248,21 @@ $('generate').addEventListener('click', () => {
   state.finalColumns = applyFilters(state.rawColumns, collectFilters()).colonne;
   state.lastGenerated = true;
   renderTable();
-  status('Sistema generato. Puoi esportare CSV, testo o stampare la tabella.', 'success');
+  status('Sistema generato. Puoi esportare il CSV leggibile, stampare il sistema integrale o le singole colonne.', 'success');
 });
 $('exportCsv').addEventListener('click', () => exportCSV(state.finalColumns));
 $('exportText').addEventListener('click', () => exportText(state.finalColumns, Math.max(0, Number($('stake').value) || 0)));
 $('printTable').addEventListener('click', stampaTabella);
+$('printIntegral').addEventListener('click', () => {
+  const matches = state.matches.filter(m => (m.selezionati || []).length);
+  const integral = $('integralPrint');
+  const choices = matches.map((m, i) => {
+    const selected = (m.selezionati || []).map(key => m.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
+    return `<article class="integral-match"><span class="integral-number">${i+1}</span><div><strong>${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</strong><small>${escapeHtml([m.competizione,m.data,m.ora].filter(Boolean).join(' · '))}</small><p>${selected.map(o => `${escapeHtml(o.label)} <b>@ ${formatQuota(o.quota)}</b>`).join(' &nbsp; / &nbsp; ')}</p></div><em>${m.tipo === 'doppia' ? 'DOPPIA' : 'FISSA'}</em></article>`;
+  }).join('');
+  integral.innerHTML = `<h1>Sistema integrale</h1><p class="integral-subtitle">Selezioni complete · ${matches.length} partite · ${state.rawColumns.length.toLocaleString('it-IT')} colonne teoriche</p>${choices}<div class="integral-note">Questo foglio riepiloga tutte le selezioni del sistema, senza stampare l'elenco delle singole colonne. Quote indicative, soggette a variazione.</div>`;
+  document.body.dataset.printMode = 'integral'; window.print(); delete document.body.dataset.printMode;
+});
 $('themeToggle').addEventListener('click', () => {
   document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   saveState();
@@ -265,7 +275,7 @@ $('reset').addEventListener('click', () => {
   $('highOdds').value = '3.00'; localStorage.removeItem(savedKey);
   renderMatches(); $('summary').textContent = 'Seleziona almeno una partita e i relativi esiti.';
   $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = true;
+  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   status('Sistema azzerato.');
 });
 restoreState();
