@@ -1,0 +1,8 @@
+{
+  "name": "sistema-scommesse-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/regression.mjs"
+  }
+}

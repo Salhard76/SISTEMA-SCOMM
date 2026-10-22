@@ -24,4 +24,20 @@ export function exportText(colonne, puntata) {
   for (const c of colonne) lines.push(`COLONNA ${c.id}`, ...c.esiti.map(e => `  • ${e.partita}: ${e.label} (quota ${e.quota})`), `  Quota totale: ${Number(c.quotaTotale).toFixed(2)} | Bonus stimato: ${(Number(c.bonusPercentuale)||0).toFixed(2)}% | Ritorno lordo: ${Number(c.ritornoStimato||0).toFixed(2)} € | Profitto teorico: ${Number(c.profittoStimato||0).toFixed(2)} €`, '');
   download(lines.join('\n'), 'text/plain;charset=utf-8', 'sistema-scommesse-dettaglio.txt');
 }
-export function stampaTabella() { document.body.dataset.printMode = 'table'; window.print(); delete document.body.dataset.printMode; }
+export function printWithMode(mode) {
+  document.body.dataset.printMode = mode;
+  let cleaned = false;
+  let timeoutId = null;
+  const clear = () => {
+    if (cleaned) return;
+    cleaned = true;
+    delete document.body.dataset.printMode;
+    window.removeEventListener('afterprint', clear);
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  };
+  window.addEventListener('afterprint', clear);
+  // Android/alcuni browser non inviano sempre afterprint dopo Annulla.
+  timeoutId = window.setTimeout(clear, 60000);
+  try { window.print(); } catch (error) { clear(); throw error; }
+}
+export function stampaTabella() { printWithMode('table'); }

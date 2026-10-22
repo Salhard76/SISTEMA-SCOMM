@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js"></script>
+  <link rel="stylesheet" href="style.css?v=auditfix-20261022-v2">
+  <script type="module" src="app.js?v=auditfix-20261022-v2"></script>
 </head>
 <body>
   <header class="site-header">
@@ -18,25 +18,49 @@
   <main class="container">
     <section class="panel" aria-labelledby="input-title">
       <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="input-title">Inserisci le quote</h2></div><span class="step-number">01</span></div>
-      <div class="tabs" role="tablist" aria-label="Metodo di inserimento">
-        <button class="tab active" id="manualTab" role="tab" aria-selected="true" aria-controls="manualPanel" type="button">Incolla manualmente</button>
-        <button class="tab" id="pdfTab" role="tab" aria-selected="false" aria-controls="pdfPanel" type="button">Importa da PDF Sisal</button>
-      </div>
-      <div id="manualPanel" role="tabpanel" aria-labelledby="manualTab">
-        <label for="manualInput">Una partita per riga (massimo 10 partite caricate)</label>
-        <p class="help">Massimo 10 partite per sessione e massimo 2 esiti selezionabili per partita. Se incolli più di 10 partite, vengono caricate solo le prime 10 riconosciute. Formato consigliato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00</code>. Per ogni partita puoi poi scegliere gli esiti disponibili.</p>
-        <textarea id="manualInput" rows="5" spellcheck="false" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;Napoli - Torino; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
+      <section id="manualPanel" class="input-method-card manual-method" aria-labelledby="manual-title">
+        <h3 id="manual-title">Incolla le quote manualmente</h3>
+        <p class="help">Questa sezione resta sempre visibile: non devi cambiare scheda. Una partita per riga; massimo 10 partite caricate e 2 esiti selezionabili per partita. Formato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85</code> oppure <code>Milan - Roma; 2.10; 3.20; 3.60</code>.</p>
+        <textarea id="manualInput" rows="5" spellcheck="false" autocomplete="off" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;23/10 20:45; Napoli; Roma; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
         <div class="button-row"><button id="parseManual" class="button primary" type="button">Carica partite</button><button id="clearInput" class="button secondary" type="button">Svuota</button></div>
-      </div>
-      <div id="pdfPanel" role="tabpanel" aria-labelledby="pdfTab" hidden>
-        <label for="pdfUrl">URL del PDF</label>
-        <input id="pdfUrl" type="url" value="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf">
-        <p class="help">Se il browser blocca il download automatico, scarica il PDF dal link Sisal e selezionalo qui sotto. Non vengono utilizzati proxy. Dal PDF vengono caricate solo le partite di Serie A.</p>
-        <label for="pdfFile">Carica un PDF già scaricato</label>
-        <input id="pdfFile" type="file" accept=".pdf,application/pdf" class="file-input">
-        <button id="loadPdfFile" class="button secondary" type="button">Scegli file PDF…</button>
+      </section>
+      <section id="pdfPanel" class="input-method-card pdf-method" aria-labelledby="pdf-title">
+        <h3 id="pdf-title">Importa il PDF Sisal (consigliato su Android)</h3>
+        <p class="help">L'importazione diretta dal sito può essere bloccata dal browser (CORS). Su Android, apri il PDF Sisal, scegli <strong>Scarica</strong> quando compare la scelta “Apri in Notes o Scarica”, poi torna qui e seleziona il file nella cartella <strong>Download/Scaricati</strong>.</p>
+        <a class="button secondary full-width" href="#manualPanel">Vai a Incolla manualmente ↑</a>
+        <a id="openSisalPdf" class="button secondary full-width" href="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf" target="_blank" rel="noopener noreferrer">Apri / scarica PDF ufficiale Sisal ↗</a>
+        <label for="pdfFile">Poi seleziona il PDF salvato sul dispositivo</label>
+        <input id="pdfFile" type="file" accept="application/pdf,.pdf" class="file-input">
         <p id="pdfFileName" class="help" aria-live="polite">Nessun file selezionato.</p>
-        <button id="importPdf" class="button primary" type="button">Importa quote da URL</button>
+        <details class="optional-url">
+          <summary>Prova importazione diretta da URL (può essere bloccata)</summary>
+          <label for="pdfUrl">URL del PDF</label>
+          <input id="pdfUrl" type="url" value="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf">
+          <button id="importPdf" class="button primary full-width" type="button">Tenta importazione diretta</button>
+        </details>
+        <p class="help">Dal PDF vengono caricate solo le partite di Serie A riconosciute.</p>
+        <details id="pdfDiagnostics" class="pdf-diagnostics" hidden><summary id="pdfDiagnosticsSummary">Diagnostica importazione PDF</summary><p id="pdfDiagnosticsText" class="help" aria-live="polite"></p></details>
+      </section>
+      <section class="input-method-card team-method" aria-labelledby="team-manager-title">
+        <h3 id="team-manager-title">Elenco squadre Serie A</h3>
+        <p class="help">Il parser usa l'elenco per riconoscere i nomi composti quando il PDF stampa le due squadre senza separatore. L'elenco di riferimento è verificato sulla pagina ufficiale della Lega Serie A; puoi caricarlo con un tocco e controllarlo prima di salvarlo.</p>
+        <div class="official-team-source">
+          <p class="help">Fonte ufficiale: <a href="https://www.legaseriea.it/serie-a" target="_blank" rel="noopener noreferrer">Lega Serie A – Club ↗</a></p>
+          <button id="refreshOfficialTeams" class="button primary full-width" type="button">Carica elenco ufficiale di riferimento</button>
+          <p id="officialTeamStatus" class="help" aria-live="polite">Nessun aggiornamento caricato. L'elenco ufficiale viene distribuito con questa versione dell'app.</p>
+        </div>
+        <details id="teamManager" class="team-manager">
+          <summary>Modifica elenco o alias (manuale)</summary>
+          <label for="teamListInput">Una squadra per riga</label>
+          <textarea id="teamListInput" rows="7" spellcheck="false" autocapitalize="words" placeholder="Atalanta&#10;Bologna&#10;Virtus Entella"></textarea>
+          <p class="help">Scrivi il nome completo come appare sul bollettino: ad esempio <code>Virtus Entella</code> o <code>Juve Stabia</code> restano una singola squadra. Per un'abbreviazione, usa <code>Nome completo | alias</code>. Non inserire qui squadre di Serie B se vuoi importare soltanto la Serie A.</p>
+          <div class="button-row"><button id="saveTeamList" class="button primary" type="button">Salva elenco</button><button id="resetTeamList" class="button secondary" type="button">Ripristina base ufficiale 2026/27</button></div>
+          <p id="teamListStatus" class="help" aria-live="polite">Le modifiche vengono salvate su questo dispositivo.</p>
+        </details>
+      </section>
+      <div id="seasonTeamReminder" class="season-reminder" hidden>
+        <div><strong>Controllo annuale squadre</strong><p class="help">È il periodo del controllo stagionale: verifica promosse, retrocesse e nomi ufficiali. Il promemoria resta finché non confermi.</p></div>
+        <div class="button-row"><button id="openTeamManager" class="button primary" type="button">Aggiorna elenco</button><button id="confirmTeamList" class="button secondary" type="button">Elenco verificato</button></div>
       </div>
       <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
       <div id="matches" class="matches"></div>
@@ -44,15 +68,14 @@
 
     <section class="panel" aria-labelledby="filters-title">
       <div class="section-heading"><div><p class="eyebrow">PASSO 2</p><h2 id="filters-title">Filtri di riduzione</h2></div><span class="step-number">02</span></div>
-      <p class="help">I filtri si aggiornano mentre modifichi i valori. Le quote e le probabilità sono stime matematiche implicite, non previsioni dell'esito.</p>
-      <div class="filter-grid">
-        <div class="field"><label for="maxDraws">Pareggi massimi</label><input id="maxDraws" type="number" min="0" step="1" placeholder="Nessun limite"></div>
-        <div class="field"><label for="minDraws">Pareggi minimi</label><input id="minDraws" type="number" min="0" step="1" placeholder="Nessun limite"></div>
-        <div class="field"><label for="maxGoals">Goal Sì massimi</label><input id="maxGoals" type="number" min="0" step="1" placeholder="Nessun limite"></div>
-        <div class="field"><label for="highOdds">Soglia quote alte</label><input id="highOdds" type="number" min="1.01" step="0.01" value="3.00"></div>
-        <div class="field"><label for="maxHigh">Quote sopra soglia max</label><input id="maxHigh" type="number" min="0" step="1" placeholder="Nessun limite"></div>
-        <div class="field"><label for="minQuota">Quota totale minima</label><input id="minQuota" type="number" min="1" step="0.01" placeholder="Nessun limite"></div>
-        <div class="field"><label for="maxQuota">Quota totale massima</label><input id="maxQuota" type="number" min="1" step="0.01" placeholder="Nessun limite"></div>
+      <p class="help">I filtri sugli esiti compaiono in base alle selezioni effettive delle partite. Per ogni esito puoi impostare un numero minimo e/o massimo di presenze in ciascuna colonna; un campo vuoto non impone limiti.</p>
+      <details id="dynamicFilterPanel" class="dynamic-filter-panel" open>
+        <summary>Filtri dinamici sugli esiti selezionati</summary>
+        <div id="dynamicFilters" class="dynamic-filters" aria-live="polite" aria-atomic="true"><p class="help">Seleziona gli esiti delle partite per costruire i filtri.</p></div>
+      </details>
+      <div class="filter-grid static-filter-grid">
+        <div class="field"><label for="highOdds">Soglia quote singole alte</label><input id="highOdds" type="number" min="1.01" step="0.01" value="3.00"></div>
+        <div class="field"><label for="maxHigh">Numero massimo di quote sopra soglia</label><input id="maxHigh" type="number" min="0" step="1" placeholder="Nessun limite"></div>
         <div class="field"><label for="minProb">Probabilità implicita minima (%)</label><input id="minProb" type="number" min="0" max="100" step="0.1" placeholder="Nessun limite"></div>
       </div>
       <div class="counter" aria-live="polite"><span>Colonne prima</span><strong id="beforeCount">0</strong><span class="arrow">→</span><span>Colonne dopo</span><strong id="afterCount">0</strong></div>
@@ -62,7 +85,7 @@
       <div class="section-heading"><div><p class="eyebrow">PASSO 3</p><h2 id="generate-title">Genera sistema</h2></div><span class="step-number">03</span></div>
       <div class="generate-controls">
         <div class="field"><label for="stake">Puntata per colonna (€)</label><input id="stake" type="number" min="0.01" step="0.01" value="0.10"></div>
-        <div class="field"><label for="maxColumns">Massimo colonne generate</label><select id="maxColumns"><option value="1024">1.024</option><option value="4096">4.096</option><option value="16384">16.384</option><option value="32768" selected>32.768</option><option value="65536">65.536</option></select></div>
+        <div class="field system-limit"><label>Limite massimo del sistema</label><p><strong>1.024 colonne</strong></p><p class="help">10 partite × massimo 2 esiti ciascuna: 2¹⁰ = 1.024.</p></div>
         <button id="generate" class="button primary" type="button">Genera sistema</button>
         <button id="reset" class="button danger" type="button">Reset completo</button>
       </div>

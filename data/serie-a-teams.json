@@ -1,0 +1,29 @@
+{
+  "competition": "Serie A Enilive",
+  "season": "2026/27",
+  "verifiedAt": "2026-10-22",
+  "sourceName": "Lega Serie A – pagina ufficiale Club",
+  "sourceUrl": "https://www.legaseriea.it/serie-a",
+  "teams": [
+    "Atalanta",
+    "Bologna",
+    "Cagliari",
+    "Como",
+    "Fiorentina",
+    "Frosinone",
+    "Genoa",
+    "Inter",
+    "Juventus",
+    "Lazio",
+    "Lecce",
+    "Milan",
+    "Monza",
+    "Napoli",
+    "Parma",
+    "Roma",
+    "Sassuolo",
+    "Torino",
+    "Udinese",
+    "Venezia"
+  ]
+}

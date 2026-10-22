@@ -1,15 +1,16 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL } from './js/parser.js';
-import { generateSystem } from './js/generator.js';
-import { applyFilters, maxPareggi, minPareggi, maxGoalSi, maxEsitiAlti, quotaMin, quotaMax, probabilitaMin } from './js/filters.js';
-import { formatEuro, formatQuota, profittoNetto, vincitaMinima, vincitaMassima } from './js/calculator.js';
-import { exportCSV, exportText, stampaTabella } from './js/exporter.js';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=auditfix-20261022-v2';
+import { generateSystem } from './js/generator.js?v=auditfix-20261022-v2';
+import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=auditfix-20261022-v2';
+import { formatEuro, formatQuota } from './js/calculator.js?v=auditfix-20261022-v2';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=auditfix-20261022-v2';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=auditfix-20261022-v2';
 
 const $ = id => document.getElementById(id);
-const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false };
+const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {} };
 const savedKey = 'sistema-scommesse-builder-v1';
-const MAX_MATCHES = 10;
-const MAX_CHOICES_PER_MATCH = 2;
 let filterUpdateTimeout = null;
+let stakeSaveTimeout = null;
+let lastDynamicFilterSignature = null;
 const debouncedUpdateCounter = () => {
   clearTimeout(filterUpdateTimeout);
   filterUpdateTimeout = setTimeout(updateCounter, 300);
@@ -18,9 +19,116 @@ const debouncedUpdateCounter = () => {
 function status(message, type = '') {
   const el = $('status'); el.textContent = message; el.className = `status ${type}`.trim();
 }
+const reviewedSeasonKey = 'sistema-scommesse-serie-a-reviewed-season-v1';
+function currentSeason() {
+  const now = new Date();
+  const startYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${startYear}/${String(startYear + 1).slice(-2)}`;
+}
+function renderTeamListEditor() {
+  $('teamListInput').value = getSerieATeamLines().join('\n');
+}
+function normalizeTeamName(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('it-IT').replace(/[^a-z0-9]/g, '');
+}
+function preserveAliasesForOfficialTeams(officialTeams, existingLines) {
+  const previous = existingLines.map(line => String(line).split('|').map(part => part.trim()).filter(Boolean));
+  return officialTeams.map(name => {
+    const key = normalizeTeamName(name);
+    const aliases = previous
+      .filter(parts => parts.some(part => normalizeTeamName(part) === key))
+      .flatMap(parts => parts)
+      .filter(alias => normalizeTeamName(alias) !== key);
+    const uniqueAliases = [...new Set(aliases)];
+    return uniqueAliases.length ? `${name} | ${uniqueAliases.join(' | ')}` : name;
+  });
+}
+$('refreshOfficialTeams').addEventListener('click', async () => {
+  const button = $('refreshOfficialTeams');
+  const previousText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Caricamento elenco…';
+  $('officialTeamStatus').textContent = 'Leggo il file di riferimento incluso nell’app…';
+  try {
+    // File same-origin: funziona anche su GitHub Pages senza dipendere dal CORS della Lega.
+    const url = new URL('./data/serie-a-teams.json', window.location.href);
+    url.searchParams.set('v', String(Date.now()));
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`File elenco non disponibile (HTTP ${response.status}).`);
+    const data = await response.json();
+    const official = Array.isArray(data.teams) ? data.teams.map(x => String(x).trim()).filter(Boolean) : [];
+    const normalized = official.map(normalizeTeamName);
+    if (official.length !== 20 || normalized.some((value, i) => !value || normalized.indexOf(value) !== i)) {
+      throw new Error('L’elenco di riferimento non supera il controllo di integrità; non ho modificato i tuoi dati.');
+    }
+    const merged = preserveAliasesForOfficialTeams(official, getSerieATeamLines());
+    $('teamListInput').value = merged.join('\n');
+    $('teamManager').open = true;
+    $('officialTeamStatus').textContent = `Elenco di riferimento ${data.season || 'corrente'} caricato (${official.length} squadre, verificato il ${data.verifiedAt || '—'}). Controlla il risultato e premi “Salva elenco” per applicarlo. Fonte: Lega Serie A.`;
+    $('teamListStatus').textContent = 'L’elenco è stato caricato nella casella di modifica ma non è ancora salvato: nessuna partita o quota è stata modificata.';
+    $('teamListInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (error) {
+    $('officialTeamStatus').textContent = `${error?.message || 'Aggiornamento non riuscito.'} Nessun dato è stato modificato.`;
+  } finally {
+    button.disabled = false;
+    button.textContent = previousText;
+  }
+});
+
+function updateSeasonReminder() {
+  const now = new Date();
+  // Da agosto fino alla conferma: se l'utente non apre l'app in agosto, il promemoria resta visibile.
+  let checkedSeason = '';
+  try { checkedSeason = globalThis.localStorage?.getItem(reviewedSeasonKey) || ''; } catch { /* Ignora storage non disponibile. */ }
+  $('seasonTeamReminder').hidden = !(now.getMonth() >= 7 && checkedSeason !== currentSeason());
+}
+function markTeamListReviewed() {
+  try { localStorage.setItem(reviewedSeasonKey, currentSeason()); } catch { /* Il promemoria rimane solo nella sessione corrente. */ }
+  updateSeasonReminder();
+}
+$('saveTeamList').addEventListener('click', () => {
+  try {
+    const lines = $('teamListInput').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    const saved = setSerieATeamLines(lines);
+    renderTeamListEditor();
+    markTeamListReviewed();
+    $('teamListStatus').textContent = saved.length < 15
+      ? `Elenco salvato: ${saved.length} voci squadra/alias. Avviso: una lista così corta può impedire il riconoscimento di molte partite del PDF Serie A. Controlla di aver inserito tutte le squadre e gli alias necessari.`
+      : `Elenco salvato: ${saved.length} voci squadra/alias. Sarà usato dalla prossima importazione PDF.`;
+    if (saved.length < 15) console.warn(`Elenco squadre corto: ${saved.length} voci.`);
+    status('Elenco squadre Serie A aggiornato sul dispositivo.', 'success');
+  } catch (error) {
+    $('teamListStatus').textContent = error?.message || 'Non riesco a salvare l’elenco.';
+    status($('teamListStatus').textContent, 'error');
+  }
+});
+$('resetTeamList').addEventListener('click', () => {
+  resetSerieATeamLines();
+  renderTeamListEditor();
+  updateSeasonReminder();
+  $('teamListStatus').textContent = `Ripristinato l’elenco base della stagione 2026/27: ${SERIE_A_TEAMS.length} squadre.`;
+  status('Ripristinato l’elenco squadre base. Le modifiche si applicheranno alla prossima importazione PDF.', 'success');
+});
+$('openTeamManager').addEventListener('click', () => {
+  $('teamManager').open = true;
+  $('teamManager').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('teamListInput').focus({ preventScroll: true });
+});
+$('confirmTeamList').addEventListener('click', () => {
+  const draft = $('teamListInput').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const saved = getSerieATeamLines();
+  if (JSON.stringify(draft) !== JSON.stringify(saved)) {
+    $('teamListStatus').textContent = 'L’editor contiene modifiche non salvate. Premi “Salva elenco” per applicarle oppure ripristina il testo salvato prima di confermare.';
+    status('Prima salva le modifiche all’elenco o ripristina la versione salvata.', 'error');
+    return;
+  }
+  markTeamListReviewed();
+  $('teamListStatus').textContent = `Elenco confermato per la stagione ${currentSeason()}. Puoi comunque modificarlo in qualsiasi momento.`;
+  status(`Elenco squadre confermato per ${currentSeason()}.`, 'success');
+});
 function saveState() {
   try {
-    localStorage.setItem(savedKey, JSON.stringify({ manualInput: $('manualInput').value, stake: $('stake').value, maxColumns: $('maxColumns').value, matches: state.matches, theme: document.documentElement.dataset.theme || 'light' }));
+    localStorage.setItem(savedKey, JSON.stringify({ manualInput: $('manualInput').value, stake: $('stake').value, matches: state.matches, outcomeFilterLimits: state.outcomeFilterLimits, theme: document.documentElement.dataset.theme || 'light' }));
   } catch { /* localStorage può essere disabilitato: l'app continua a funzionare. */ }
 }
 function restoreState() {
@@ -29,8 +137,8 @@ function restoreState() {
     if (!data) return;
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
-    $('maxColumns').value = data.maxColumns || '32768';
     if (Array.isArray(data.matches)) state.matches = data.matches.slice(0, MAX_MATCHES).map(m => ({ ...m, selezionati: (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH) }));
+    if (data.outcomeFilterLimits && typeof data.outcomeFilterLimits === 'object') state.outcomeFilterLimits = data.outcomeFilterLimits;
     document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
   } catch { /* Stato salvato corrotto: partenza pulita. */ }
 }
@@ -45,9 +153,40 @@ function outcomeGroups(match) {
   }
   return [...map.entries()];
 }
+function renderDynamicFilters() {
+  const root = $('dynamicFilters');
+  const catalog = new Map();
+  for (const match of state.matches) {
+    const selected = (match.selezionati || []).map(key => match.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
+    for (const outcome of selected) {
+      const descriptor = describeOutcome(outcome);
+      if (!catalog.has(descriptor.key)) catalog.set(descriptor.key, { ...descriptor, occurrences: 0 });
+      catalog.get(descriptor.key).occurrences += 1;
+    }
+  }
+  const items = [...catalog.values()].sort((a, b) => a.label.localeCompare(b.label, 'it'));
+  const signature = items.map(item => `${item.key}:${item.occurrences}`).join('|');
+  if (signature === lastDynamicFilterSignature) return;
+  lastDynamicFilterSignature = signature;
+  if (!items.length) {
+    root.innerHTML = '<p class="help">Seleziona gli esiti delle partite: compariranno qui i limiti disponibili per ciascun esito.</p>';
+    return;
+  }
+  root.innerHTML = items.map((item, index) => {
+    const saved = state.outcomeFilterLimits[item.key] || {};
+    const key = encodeURIComponent(item.key);
+    return `<div class="dynamic-filter-row" data-filter-row="${key}">
+      <div class="dynamic-filter-name"><strong>${escapeHtml(item.label)}</strong><small>Disponibile in ${item.occurrences} selezioni</small></div>
+      <div class="dynamic-filter-inputs">
+        <label for="dyn-min-${index}">Min <input id="dyn-min-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="min" data-filter-key="${key}" value="${saved.min ?? ''}"></label>
+        <label for="dyn-max-${index}">Max <input id="dyn-max-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="max" data-filter-key="${key}" value="${saved.max ?? ''}"></label>
+      </div>
+    </div>`;
+  }).join('');
+}
 function renderMatches() {
   const root = $('matches');
-  if (!state.matches.length) { root.innerHTML = ''; updateCounter(); return; }
+  if (!state.matches.length) { root.innerHTML = ''; renderDynamicFilters(); updateCounter(); return; }
   root.innerHTML = state.matches.map((m, mi) => {
     const groups = outcomeGroups(m);
     const selected = (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH);
@@ -63,6 +202,7 @@ function renderMatches() {
       <p class="match-meta">Massimo 2 scelte per partita. Una fissa usa 1 esito; una doppia usa 2 alternative.</p>
     </article>`;
   }).join('');
+  renderDynamicFilters();
   updateCounter();
 }
 function readEvents() {
@@ -76,14 +216,32 @@ function readEvents() {
 }
 function collectFilters() {
   const fs = [];
-  const add = (id, label, fn) => { const v = $(id).value.trim(); if (v !== '' && Number.isFinite(Number(v))) fs.push({ nome: label, test: fn(Number(v)) }); };
-  add('maxDraws','Pareggi massimi',maxPareggi);
-  add('minDraws','Pareggi minimi',minPareggi);
-  add('maxGoals','Goal Sì massimi',maxGoalSi);
-  if ($('maxHigh').value.trim() !== '') fs.push({ nome:'Quote alte massime', test:maxEsitiAlti(Number($('maxHigh').value), Number($('highOdds').value) || 3) });
-  add('minQuota','Quota minima',quotaMin);
-  add('maxQuota','Quota massima',quotaMax);
-  add('minProb','Probabilità minima',probabilitaMin);
+  const currentCatalog = new Map();
+  for (const match of state.matches) {
+    const selected = (match.selezionati || []).map(selectedKey => match.esiti.find(o => `${o.market}:${o.outcome}` === selectedKey)).filter(Boolean);
+    for (const outcome of selected) {
+      const descriptor = describeOutcome(outcome);
+      if (!currentCatalog.has(descriptor.key)) currentCatalog.set(descriptor.key, descriptor);
+    }
+  }
+  // Limiti salvati per tipi di esito non più selezionati restano memorizzati,
+  // ma sono inattivi finché l'esito non torna presente nel sistema.
+  for (const [key, limits] of Object.entries(state.outcomeFilterLimits || {})) {
+    const current = currentCatalog.get(key);
+    if (!current) continue;
+    if (limits.min !== '' && limits.min != null && Number.isFinite(Number(limits.min))) {
+      fs.push({ nome: `${current.label} · Min`, test: minOutcomeCount(key, Number(limits.min)) });
+    }
+    if (limits.max !== '' && limits.max != null && Number.isFinite(Number(limits.max))) {
+      fs.push({ nome: `${current.label} · Max`, test: maxOutcomeCount(key, Number(limits.max)) });
+    }
+  }
+  if ($('maxHigh').value.trim() !== '' && Number.isFinite(Number($('maxHigh').value))) {
+    fs.push({ nome: 'Quote singole sopra soglia · Max', test: maxEsitiAlti(Number($('maxHigh').value), Number($('highOdds').value) || 3) });
+  }
+  if ($('minProb').value.trim() !== '' && Number.isFinite(Number($('minProb').value))) {
+    fs.push({ nome: 'Probabilità implicita minima', test: probabilitaMin(Number($('minProb').value)) });
+  }
   return fs;
 }
 function buildBase() {
@@ -93,8 +251,19 @@ function buildBase() {
     if (e.tipo === 'fissa' && e.esiti.length > 1) e.esiti = [e.esiti[0]];
     if (e.tipo === 'doppia' && e.esiti.length < 2) return { error: `La partita "${e.nome}" è impostata come doppia: seleziona almeno due esiti.` };
   }
-  const result = generateSystem(events, Number($('maxColumns').value));
-  if (result.exceeded) return { error: `Sistema troppo grande: ${result.theoretical.toLocaleString('it-IT')} colonne, limite ${Number($('maxColumns').value).toLocaleString('it-IT')}. Riduci le doppie o aumenta il limite.` };
+  if (events.length > MAX_MATCHES) {
+    return { error: `Il sistema ammette al massimo ${MAX_MATCHES} partite.` };
+  }
+  if (events.some(e => e.tipo !== 'fissa' && e.esiti.length > MAX_CHOICES_PER_MATCH)) {
+    return { error: `Ogni partita può contenere al massimo ${MAX_CHOICES_PER_MATCH} esiti selezionati.` };
+  }
+  const result = generateSystem(events, MAX_SYSTEM_COLUMNS);
+  if (result.exceeded) {
+    if (result.reason === 'too_many_matches') return { error: `Limite superato: massimo ${MAX_MATCHES} partite per sistema.` };
+    if (result.reason === 'too_many_choices') return { error: `Limite superato: massimo ${MAX_CHOICES_PER_MATCH} esiti per partita.` };
+    if (result.reason === 'invalid_double') return { error: 'Ogni doppia deve avere esattamente due esiti selezionati.' };
+    return { error: `Sistema oltre il limite matematico di ${MAX_SYSTEM_COLUMNS.toLocaleString('it-IT')} colonne. Controlla le selezioni.` };
+  }
   return { result };
 }
 function updateCounter() {
@@ -140,28 +309,89 @@ function renderTable() {
   const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+let pdfJsBase = '';
+let pdfJsLoadPromise = null;
 async function loadPdfJs() {
   if (globalThis.pdfjsLib) return globalThis.pdfjsLib;
-  await new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('CDN PDF.js non raggiungibile'));
-    document.head.appendChild(script);
-  });
-  if (!globalThis.pdfjsLib) throw new Error('PDF.js non è stato caricato correttamente.');
-  globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  return globalThis.pdfjsLib;
+  if (pdfJsLoadPromise) return pdfJsLoadPromise;
+
+  pdfJsLoadPromise = (async () => {
+    const cdns = [
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174',
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build'
+    ];
+    let lastError;
+    for (const base of cdns) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `${base}/pdf.min.js`;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => { script.remove(); reject(new Error('Libreria PDF non raggiungibile')); };
+          document.head.appendChild(script);
+        });
+        if (globalThis.pdfjsLib) { pdfJsBase = base; break; }
+        lastError = new Error('Libreria PDF.js caricata senza inizializzarsi');
+      } catch (error) { lastError = error; }
+    }
+    if (!globalThis.pdfjsLib) {
+      throw new Error(`Impossibile caricare il lettore PDF. Controlla la connessione e riprova. ${lastError?.message || ''}`.trim());
+    }
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = `${pdfJsBase}/pdf.worker.min.js`;
+    return globalThis.pdfjsLib;
+  })();
+
+  try {
+    return await pdfJsLoadPromise;
+  } catch (error) {
+    pdfJsLoadPromise = null;
+    throw error;
+  }
 }
+function showPdfDiagnostics(diagnostics, importedCount = 0) {
+  const panel = $('pdfDiagnostics');
+  if (!diagnostics) { panel.hidden = true; return; }
+  const lines = [];
+  if (!diagnostics.seriesAFound) lines.push('Intestazione "ITA Serie A" non trovata.');
+  lines.push(`Righe dati esaminate: ${diagnostics.candidateRows}. Righe riconosciute: ${diagnostics.recognizedRows}. Partite disponibili dopo deduplicazione: ${diagnostics.importedRows ?? 0}. Partite caricate nell’app: ${importedCount}.`);
+  if (diagnostics.seriesAFound && diagnostics.candidateRows === 0) lines.push('Non ho trovato righe dati nel formato atteso: il bollettino potrebbe avere un layout diverso o il testo potrebbe non essere estraibile.');
+  if (diagnostics.duplicateRows) lines.push(`Righe duplicate scartate: ${diagnostics.duplicateRows}.`);
+  if (diagnostics.rejects?.length) {
+    const quoteCounts = {};
+    let unknownTeams = 0, invalidOdds = 0, structure = 0;
+    for (const row of diagnostics.rejects) {
+      if (row.reason === 'quote_count') quoteCounts[row.foundOdds] = (quoteCounts[row.foundOdds] || 0) + 1;
+      else if (row.reason === 'teams') unknownTeams += 1;
+      else if (row.reason === 'invalid_odds') invalidOdds += 1;
+      else structure += 1;
+    }
+    const details = [];
+    for (const [count, n] of Object.entries(quoteCounts)) details.push(`${n} riga/e con ${count} quote decimali (attese 21)`);
+    if (unknownTeams) details.push(`${unknownTeams} riga/e con nomi squadra non riconosciuti`);
+    if (invalidOdds) details.push(`${invalidOdds} riga/e con quote non valide`);
+    if (structure) details.push(`${structure} riga/e con struttura inattesa`);
+    lines.push(`Righe scartate: ${diagnostics.rejects.length}${details.length ? ` — ${details.join('; ')}` : ''}.`);
+    const examples = diagnostics.rejects.slice(0, 3).map(row => `${row.data}: ${row.reason === 'quote_count' ? `trovate ${row.foundOdds} quote, attese 21` : row.reason === 'teams' ? 'nomi squadra non riconosciuti' : row.reason === 'invalid_odds' ? 'quote non valide' : 'struttura non riconosciuta'}`);
+    if (examples.length) lines.push(`Esempi: ${examples.join(' | ')}.`);
+  } else if (diagnostics.seriesAFound && diagnostics.candidateRows > 0) {
+    lines.push('Nessuna riga dati scartata per il formato.');
+  }
+  $('pdfDiagnosticsText').textContent = lines.join(' ');
+  $('pdfDiagnosticsSummary').textContent = `Diagnostica PDF · ${importedCount} partite caricate, ${diagnostics.rejects?.length || 0} righe scartate, ${diagnostics.duplicateRows || 0} duplicate`;
+  panel.hidden = false;
+}
+
 function clearImportedMatches(message) {
   state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
   renderMatches(); saveState();
   $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
   $('summary').textContent = message;
 }
-function loadMatches(matches, source) {
-  if (!matches.length) { status('Nessuna partita riconosciuta. Controlla il formato o il contenuto del PDF.', 'error'); return; }
+function loadMatches(matches, source, diagnostics = matches?.diagnostics || null) {
   const isPdfSource = /pdf/i.test(source);
+  if (!isPdfSource) showPdfDiagnostics(null);
+  if (!matches.length) { status('Nessuna partita riconosciuta. Controlla il formato o il contenuto del PDF.', 'error'); return; }
   const totalFound = matches.length;
   if (isPdfSource) {
     const serieA = matches.filter(m => String(m.competizione || '').trim().toLocaleLowerCase('it-IT') === 'serie a');
@@ -174,27 +404,23 @@ function loadMatches(matches, source) {
   }
   const filteredFound = matches.length;
   matches = matches.slice(0, MAX_MATCHES);
+  if (isPdfSource) showPdfDiagnostics(diagnostics, matches.length);
   state.matches = matches.map(m => ({ ...m, tipo:'fissa', selezionati:m.esiti.slice(0,1).map(o => `${o.market}:${o.outcome}`) }));
   state.lastGenerated = false;
   renderMatches(); saveState();
   status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
   $('tableWrap').innerHTML = '<p class="empty-state">Premi “Genera sistema” per vedere le colonne.</p>';
 }
-function switchTab(which) {
-  const manual = which === 'manual';
-  $('manualPanel').hidden = !manual; $('pdfPanel').hidden = manual;
-  $('manualTab').classList.toggle('active', manual); $('pdfTab').classList.toggle('active', !manual);
-  $('manualTab').setAttribute('aria-selected', String(manual)); $('pdfTab').setAttribute('aria-selected', String(!manual));
-}
-$('manualTab').addEventListener('click', () => switchTab('manual'));
-$('pdfTab').addEventListener('click', () => switchTab('pdf'));
+// Entrambe le modalità restano visibili: nessuna scheda da attivare su Android.
 $('parseManual').addEventListener('click', () => {
   const matches = parseManualInput($('manualInput').value);
+  showPdfDiagnostics(null);
   if (!matches.length) { status('Non ho riconosciuto partite valide. Usa: Casa - Trasferta; quota 1; quota X; quota 2; mercati opzionali come O2.5=1.90.', 'error'); return; }
   loadMatches(matches, 'input manuale');
 });
 $('clearInput').addEventListener('click', () => { $('manualInput').value = ''; status('Testo svuotato.'); saveState(); });
 $('importPdf').addEventListener('click', async () => {
+  showPdfDiagnostics(null);
   const url = $('pdfUrl').value.trim();
   if (!url) { status('Inserisci un URL PDF valido.', 'error'); return; }
   try {
@@ -209,26 +435,25 @@ $('importPdf').addEventListener('click', async () => {
     const buffer = await response.arrayBuffer();
     const matches = await parseSisalPdf(buffer);
     if (!matches.length) {
+      showPdfDiagnostics(matches.diagnostics, 0);
       state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
       renderMatches(); saveState();
       $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
       $('summary').textContent = 'Nessuna partita riconosciuta nel PDF.';
       status('PDF letto, ma non sono state riconosciute righe valide di Serie A con tutte le 21 quote previste. Le partite precedenti sono state rimosse per evitare confusione. Puoi inserire le quote manualmente nella sezione 1.', 'error');
-    } else loadMatches(matches, 'PDF da URL');
+    } else loadMatches(matches, 'PDF da URL', matches.diagnostics);
   } catch (error) {
     console.warn('Importazione PDF non riuscita:', error);
-    status('Impossibile scaricare il PDF da questo browser (possibile blocco CORS). Scarica il file sul dispositivo e usa “Scegli file PDF…”.', 'error');
-  } finally { button.disabled = false; button.textContent = 'Importa Quote da PDF'; }
+    status('Importazione diretta non riuscita (il sito Sisal può bloccare CORS). Tocca “Apri / scarica PDF ufficiale Sisal”, scegli “Scarica”, poi seleziona il PDF salvato qui sotto.', 'error');
+  } finally { button.disabled = false; button.textContent = 'Tenta importazione diretta'; }
 });
-$('loadPdfFile').addEventListener('click', () => $('pdfFile').click());
 $('pdfFile').addEventListener('change', async event => {
+  showPdfDiagnostics(null);
   const file = event.target.files?.[0];
   if (!file) return;
   $('pdfFileName').textContent = file.name;
-  const button = $('loadPdfFile');
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = 'Elaborazione…';
+  const input = $('pdfFile');
+  input.disabled = true;
   status('Lettura del PDF locale in corso…');
   try {
     if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -237,18 +462,18 @@ $('pdfFile').addEventListener('change', async event => {
     await loadPdfJs();
     const matches = await parseSisalPdf(await file.arrayBuffer());
     if (!matches.length) {
+      showPdfDiagnostics(matches.diagnostics, 0);
       clearImportedMatches('Nessuna partita riconosciuta nel PDF.');
-      status('PDF letto, ma non sono state riconosciute partite con quote 1X2 nelle sezioni supportate.', 'error');
+      status('Il PDF si apre, ma il formato non è stato riconosciuto. Verifica di aver scaricato il bollettino “Calcio base per manifestazione” aggiornato.', 'error');
     } else {
-      loadMatches(matches, 'file PDF locale');
+      loadMatches(matches, 'file PDF locale', matches.diagnostics);
     }
   } catch (error) {
     console.error('Errore durante la lettura del PDF locale:', error);
     status(error?.message || 'Errore durante la lettura del PDF. Verifica che sia valido e non protetto da password.', 'error');
   } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-    event.target.value = '';
+    input.disabled = false;
+    input.value = ''; 
   }
 });
 
@@ -262,7 +487,11 @@ $('matches').addEventListener('change', event => {
     match.tipo = target.value;
     if (match.tipo === 'fissa' && match.selezionati.length > 1) match.selezionati = match.selezionati.slice(0,1);
     if (match.tipo === 'doppia' && match.selezionati.length < 2) {
-      const extra = match.esiti.find(o => !match.selezionati.includes(`${o.market}:${o.outcome}`));
+      const first = match.esiti.find(o => match.selezionati.includes(`${o.market}:${o.outcome}`));
+      // Quando si attiva una doppia, preferisce l'alternativa dello stesso mercato
+      // (per esempio Over 2.5 + Under 2.5 invece di aggiungere automaticamente 1/X/2).
+      const extra = match.esiti.find(o => first && o.market === first.market && !match.selezionati.includes(`${o.market}:${o.outcome}`))
+        || match.esiti.find(o => !match.selezionati.includes(`${o.market}:${o.outcome}`));
       if (extra) match.selezionati.push(`${extra.market}:${extra.outcome}`);
     }
     match.selezionati = match.selezionati.slice(0, MAX_CHOICES_PER_MATCH);
@@ -290,10 +519,28 @@ $('matches').addEventListener('click', event => {
   state.matches = state.matches.filter(m => m.id !== button.dataset.id);
   renderMatches(); saveState(); updateCounter();
 });
-for (const id of ['maxDraws','minDraws','maxGoals','highOdds','maxHigh','minQuota','maxQuota','minProb']) $(id).addEventListener('input', debouncedUpdateCounter);
-$('stake').addEventListener('input', () => { saveState(); if (state.lastGenerated) renderTable(); });
+for (const id of ['highOdds','maxHigh','minProb']) $(id).addEventListener('input', debouncedUpdateCounter);
+$('dynamicFilters').addEventListener('input', event => {
+  const input = event.target.closest('input[data-dynamic-limit]');
+  if (!input) return;
+  let key;
+  try { key = decodeURIComponent(input.dataset.filterKey || ''); } catch { return; }
+  if (!key) return;
+  state.outcomeFilterLimits[key] ||= { min: '', max: '' };
+  state.outcomeFilterLimits[key][input.dataset.dynamicLimit] = input.value;
+  saveState();
+  debouncedUpdateCounter();
+});
+$('stake').addEventListener('input', () => {
+  clearTimeout(stakeSaveTimeout);
+  stakeSaveTimeout = setTimeout(saveState, 250);
+  if (state.lastGenerated) renderTable();
+});
+$('stake').addEventListener('change', () => {
+  clearTimeout(stakeSaveTimeout);
+  saveState();
+});
 $('sisalBonus').addEventListener('change', () => { if (state.lastGenerated) renderTable(); });
-$('maxColumns').addEventListener('change', updateCounter);
 $('generate').addEventListener('click', () => {
   const built = buildBase();
   if (built.error) { status(built.error, 'error'); return; }
@@ -314,7 +561,7 @@ $('printIntegral').addEventListener('click', () => {
     return `<article class="integral-match"><span class="integral-number">${i+1}</span><div><strong>${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</strong><small>${escapeHtml([m.competizione,m.data,m.ora].filter(Boolean).join(' · '))}</small><p>${selected.map(o => `${escapeHtml(o.label)} <b>@ ${formatQuota(o.quota)}</b>`).join(' &nbsp; / &nbsp; ')}</p></div><em>${m.tipo === 'doppia' ? 'DOPPIA' : 'FISSA'}</em></article>`;
   }).join('');
   integral.innerHTML = `<h1>Sistema integrale</h1><p class="integral-subtitle">Selezioni complete · ${matches.length} partite · ${state.rawColumns.length.toLocaleString('it-IT')} colonne teoriche</p>${choices}<div class="integral-note">Questo foglio riepiloga tutte le selezioni del sistema, senza stampare l'elenco delle singole colonne. Quote indicative, soggette a variazione.</div>`;
-  document.body.dataset.printMode = 'integral'; window.print(); delete document.body.dataset.printMode;
+  printWithMode('integral');
 });
 $('themeToggle').addEventListener('click', () => {
   document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -323,8 +570,10 @@ $('themeToggle').addEventListener('click', () => {
 $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
   state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
-  $('manualInput').value = ''; $('stake').value = '0.10'; $('maxColumns').value = '32768';
-  for (const id of ['maxDraws','minDraws','maxGoals','maxHigh','minQuota','maxQuota','minProb']) $(id).value = '';
+  $('manualInput').value = ''; $('stake').value = '0.10';
+  for (const id of ['maxHigh','minProb']) $(id).value = '';
+  state.outcomeFilterLimits = {};
+  renderDynamicFilters();
   $('highOdds').value = '3.00'; localStorage.removeItem(savedKey);
   renderMatches(); $('summary').textContent = 'Seleziona almeno una partita e i relativi esiti.';
   $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
@@ -332,5 +581,7 @@ $('reset').addEventListener('click', () => {
   status('Sistema azzerato.');
 });
 restoreState();
+renderTeamListEditor();
+updateSeasonReminder();
 if (state.matches.length) { renderMatches(); status('Sessione ripristinata dal dispositivo.'); }
 else $('pdfUrl').value = SISAL_DEFAULT_URL;
