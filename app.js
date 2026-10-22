@@ -1,9 +1,9 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=auditfix-20261022-v2';
-import { generateSystem } from './js/generator.js?v=auditfix-20261022-v2';
-import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=auditfix-20261022-v2';
-import { formatEuro, formatQuota } from './js/calculator.js?v=auditfix-20261022-v2';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=auditfix-20261022-v2';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=auditfix-20261022-v2';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=auditfix-20261022-inter-yfix-v3';
+import { generateSystem } from './js/generator.js?v=auditfix-20261022-inter-yfix-v3';
+import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=auditfix-20261022-inter-yfix-v3';
+import { formatEuro, formatQuota } from './js/calculator.js?v=auditfix-20261022-inter-yfix-v3';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=auditfix-20261022-inter-yfix-v3';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=auditfix-20261022-inter-yfix-v3';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {} };

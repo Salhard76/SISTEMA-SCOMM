@@ -136,6 +136,45 @@ test('Parser PDF: Serie D e Serie B chiudono la sezione Serie A; mostra diagnost
   assert.equal(matches.diagnostics.duplicateRows, 1);
   assert.equal(matches.diagnostics.importedRows, 1);
 });
+test('Parser PDF: ricompone la quota 10,50 se il PDF la posiziona 1,08 pt più in basso', async () => {
+  const y = 900;
+  const items = [
+    pdfItem('ITA Serie A', 1000),
+    { ...pdfItem('25/10 12.30', y), transform: [1, 0, 0, 1, 16, y] },
+    { ...pdfItem('36431', y), transform: [1, 0, 0, 1, 59, y] },
+    { ...pdfItem('999', y), transform: [1, 0, 0, 1, 86, y] },
+    { ...pdfItem('Inter', y), transform: [1, 0, 0, 1, 106, y] },
+    { ...pdfItem('Fiorentina', y), transform: [1, 0, 0, 1, 179, y] },
+    { ...pdfItem('1,33 5,25 8,00', y), transform: [1, 0, 0, 1, 260, y] },
+    { ...pdfItem('1', y - 0.36), transform: [1, 0, 0, 1, 306, y - 0.36] },
+    { ...pdfItem('1,80 3,75', y), transform: [1, 0, 0, 1, 312, y] },
+    { ...pdfItem('3,10', y), transform: [1, 0, 0, 1, 342, y] },
+    { ...pdfItem('1,07 3,25 1,13 5,50 1,10 2,90 1,40', y), transform: [1, 0, 0, 1, 357, y] },
+    { ...pdfItem('1,72 1,95', y), transform: [1, 0, 0, 1, 462, y] },
+    { ...pdfItem('1,65 2,10', y), transform: [1, 0, 0, 1, 492, y] },
+    { ...pdfItem('1,01', y), transform: [1, 0, 0, 1, 522, y] },
+    { ...pdfItem('10,50', y - 1.08), transform: [1, 0, 0, 1, 536, y - 1.08] },
+    { ...pdfItem('1,48', y), transform: [1, 0, 0, 1, 552, y] },
+    { ...pdfItem('2,40', y), transform: [1, 0, 0, 1, 567, y] }
+  ];
+  globalThis.pdfjsLib = {
+    GlobalWorkerOptions: {},
+    getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: async () => ({ getTextContent: async () => ({ items }) })
+    }) })
+  };
+  const matches = await parseSisalPdf(new ArrayBuffer(0));
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].data, '25/10');
+  assert.equal(matches[0].ora, '12.30');
+  assert.equal(matches[0].casa, 'Inter');
+  assert.equal(matches[0].trasferta, 'Fiorentina');
+  assert.equal(matches[0].esiti.length, 21);
+  assert.equal(matches[0].esiti[18].quota, 10.5);
+  assert.equal(matches.diagnostics.rejects.length, 0);
+});
+
 test('Parser PDF: gestisce esplicitamente PDF protetti da password', async () => {
   globalThis.pdfjsLib = {
     GlobalWorkerOptions: {},

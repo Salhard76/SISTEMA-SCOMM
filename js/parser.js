@@ -309,17 +309,35 @@ export async function parseSisalPdf(arrayBuffer) {
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
-    const rows = new Map();
+    // Nel PDF Sisal alcuni valori (es. la quota 10,50 di Inter-Fiorentina)
+    // possono avere una coordinata verticale leggermente diversa pur essendo
+    // sulla stessa riga. Arrotondare Y al singolo punto li separava in due righe
+    // e faceva risultare 20 quote invece delle 21 previste. Raggruppiamo per
+    // vicinanza verticale (2 pt), poi ordiniamo sempre per X.
+    const textItems = content.items
+      .filter(item => item.str?.trim())
+      .map(item => ({
+        x: item.transform?.[4] || 0,
+        y: item.transform?.[5] || 0,
+        text: item.str.trim()
+      }))
+      .sort((a, b) => b.y - a.y || a.x - b.x);
 
-    for (const item of content.items) {
-      if (!item.str?.trim()) continue;
-      const y = Math.round(item.transform?.[5] || 0);
-      if (!rows.has(y)) rows.set(y, []);
-      rows.get(y).push({ x: item.transform?.[4] || 0, text: item.str.trim() });
+    const rows = [];
+    const rowTolerance = 2;
+    for (const item of textItems) {
+      let row = rows[rows.length - 1];
+      if (!row || Math.abs(row.y - item.y) > rowTolerance) {
+        row = { y: item.y, count: 0, items: [] };
+        rows.push(row);
+      }
+      row.items.push(item);
+      row.count += 1;
+      row.y += (item.y - row.y) / row.count;
     }
 
-    for (const [, row] of [...rows.entries()].sort((a, b) => b[0] - a[0])) {
-      lines.push(row.sort((a, b) => a.x - b.x).map(x => x.text).join(' ').replace(/\s+/g, ' ').trim());
+    for (const row of rows) {
+      lines.push(row.items.sort((a, b) => a.x - b.x).map(x => x.text).join(' ').replace(/\s+/g, ' ').trim());
     }
   }
 
