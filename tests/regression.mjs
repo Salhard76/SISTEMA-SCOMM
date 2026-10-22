@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, describeOutcome, maxOutcomeCount } from '../js/filters.js';
@@ -14,6 +15,21 @@ function test(name, fn) {
     throw error;
   }
 }
+
+
+const pageHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const pageJs = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+test('UI: pulsante Info accessibile collegato alla finestra guida', () => {
+  assert.match(pageHtml, /id="infoButton"[^>]*aria-haspopup="dialog"[^>]*aria-controls="infoDialog"/);
+  assert.match(pageHtml, /<dialog id="infoDialog"[^>]*aria-labelledby="infoTitle"/);
+  assert.match(pageHtml, /id="closeInfo"/);
+  assert.match(pageJs, /infoButton\?\.addEventListener\('click'/);
+  assert.match(pageJs, /infoDialog\?\.addEventListener\('click'/);
+});
+test('UI: nessun identificatore duplicato in index.html', () => {
+  const ids = [...pageHtml.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(ids.length, new Set(ids).size, 'Tutti gli id HTML devono essere univoci');
+});
 
 const backupExample = createBackupPayload({
   manualInput: 'Milan - Roma; 2.10; 3.20; 3.60',

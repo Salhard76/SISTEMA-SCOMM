@@ -754,12 +754,54 @@ $('printIntegral').addEventListener('click', () => {
   integral.innerHTML = `<h1>Sistema integrale</h1><p class="integral-subtitle">Selezioni complete · ${matches.length} partite · ${state.rawColumns.length.toLocaleString('it-IT')} colonne teoriche</p>${choices}<div class="integral-note">Questo foglio riepiloga tutte le selezioni del sistema, senza stampare l'elenco delle singole colonne. Quote indicative, soggette a variazione.</div>`;
   printWithMode('integral');
 });
+// Finestra Info: dialog nativo, chiudibile da pulsante, backdrop o tasto Esc.
+const infoButton = $('infoButton');
+const infoDialog = $('infoDialog');
+function closeInfoDialog() {
+  if (!infoDialog) return;
+  if (typeof infoDialog.close === 'function' && infoDialog.open) infoDialog.close();
+  else infoDialog.removeAttribute('open');
+  delete infoDialog.dataset.fallbackOpen;
+  document.body.classList.remove('info-dialog-fallback');
+  infoButton?.focus({ preventScroll: true });
+}
+infoButton?.addEventListener('click', () => {
+  if (!infoDialog) return;
+  if (typeof infoDialog.showModal === 'function') infoDialog.showModal();
+  else {
+    infoDialog.dataset.fallbackOpen = 'true';
+    document.body.classList.add('info-dialog-fallback');
+    infoDialog.setAttribute('open', '');
+  }
+  $('closeInfoTop')?.focus({ preventScroll: true });
+});
+$('closeInfo')?.addEventListener('click', closeInfoDialog);
+$('closeInfoTop')?.addEventListener('click', closeInfoDialog);
+infoDialog?.addEventListener('click', event => {
+  if (event.target === infoDialog) closeInfoDialog();
+});
+infoDialog?.addEventListener('close', () => {
+  delete infoDialog.dataset.fallbackOpen;
+  document.body.classList.remove('info-dialog-fallback');
+  if (infoButton) infoButton.focus({ preventScroll: true });
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && infoDialog?.open && infoDialog.dataset.fallbackOpen === 'true') closeInfoDialog();
+});
+
 $('themeToggle').addEventListener('click', () => {
   document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   saveState();
 });
 let deferredInstallPrompt = null;
 const installButton = $('installApp');
+function setInstallButtonLabel(label) {
+  const node = $('installButtonLabel');
+  const icon = installButton?.querySelector('span[aria-hidden="true"]');
+  if (icon) icon.textContent = label === 'Installa app' ? '＋' : '✓';
+  if (node) node.textContent = label;
+  else installButton.textContent = label;
+}
 function isStandaloneApp() {
   return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
 }
@@ -771,7 +813,7 @@ function showInstallHelp(message = 'Il browser non ha proposto l’installazione
   help.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 if (isStandaloneApp()) {
-  installButton.textContent = 'App installata';
+  setInstallButtonLabel('App installata');
   installButton.disabled = true;
   $('installStatus').textContent = 'Sistema Scommesse Builder è già installata.';
 }
@@ -779,7 +821,7 @@ window.addEventListener('beforeinstallprompt', event => {
   event.preventDefault();
   deferredInstallPrompt = event;
   installButton.hidden = false;
-  installButton.textContent = '＋ Installa app';
+  setInstallButtonLabel('Installa app');
   $('installStatus').textContent = 'Installazione dell’app disponibile.';
 });
 installButton.addEventListener('click', async () => {
@@ -798,7 +840,7 @@ installButton.addEventListener('click', async () => {
     const choice = await promptEvent.userChoice;
     if (choice?.outcome === 'accepted') {
       $('installStatus').textContent = 'Richiesta di installazione accettata. Completa il passaggio richiesto dal browser.';
-      installButton.textContent = 'Installazione richiesta';
+      setInstallButtonLabel('Installazione richiesta');
     } else {
       $('installStatus').textContent = 'Installazione annullata. Puoi riprovare dal menu del browser.';
       showInstallHelp('Hai annullato l’installazione automatica; le istruzioni manuali sono qui sotto.');
@@ -810,7 +852,7 @@ installButton.addEventListener('click', async () => {
 });
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  installButton.textContent = 'App installata';
+  setInstallButtonLabel('App installata');
   installButton.disabled = true;
   $('installStatus').textContent = 'Sistema Scommesse Builder è stata installata.';
   $('installHelp').hidden = true;

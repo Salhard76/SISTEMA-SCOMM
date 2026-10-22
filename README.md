@@ -65,3 +65,6 @@ Prima di generare, un controllo visuale rileva selezioni non collegate alle quot
 ## Icona e installazione su Android
 
 Il progetto include `manifest.webmanifest`, icone PNG da 192 e 512 px, una variante maskable, favicon e icona Apple Touch. L'immagine principale riutilizza esattamente l'icona La(a)rfleeze già presente nel pacchetto Cammafà. La pubblicazione deve mantenere tutti questi file nella radice del sito accanto a `index.html`. Non viene registrato un service worker: l'app non promette funzionamento offline e gli aggiornamenti pubblicati non restano bloccati da una cache offline dedicata.
+
+## Pulsante Info
+Il pulsante **ⓘ Info** in alto a destra apre una guida rapida con le istruzioni per importare il PDF Sisal o inserire quote manualmente, i limiti del generatore, i filtri di riduzione, l'esportazione, il backup JSON e l'installazione sulla schermata Home. La finestra si chiude con il pulsante di chiusura, facendo clic sullo sfondo o premendo Esc. Su schermi molto stretti il pulsante viene mostrato come icona per lasciare spazio al titolo.

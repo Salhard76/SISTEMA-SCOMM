@@ -8,20 +8,43 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=backup-pwa-validation-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=backup-pwa-validation-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=backup-pwa-validation-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=backup-pwa-validation-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=info-help-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=info-help-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=info-help-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=info-help-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=backup-pwa-validation-20261022">
-  <script type="module" src="app.js?v=backup-pwa-validation-20261022"></script>
+  <link rel="stylesheet" href="style.css?v=info-help-20261022">
+  <script type="module" src="app.js?v=info-help-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=backup-pwa-validation-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
-    <div class="header-actions"><button id="installApp" class="button secondary" type="button" aria-describedby="installStatus">＋ Installa app</button><button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema">☾ Tema</button><a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=info-help-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="header-actions">
+      <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
+      <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
+      <a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      <button id="infoButton" class="button secondary info-button" type="button" aria-label="Apri informazioni e guida rapida" aria-haspopup="dialog" aria-controls="infoDialog" title="Info">ⓘ<span class="info-button-label"> Info</span></button>
+    </div>
   </header>
+
+  <dialog id="infoDialog" class="info-dialog" aria-labelledby="infoTitle" aria-describedby="infoIntro">
+    <div class="info-dialog-header">
+      <div><p class="info-kicker">SISTEMA SCOMMESSE BUILDER</p><h2 id="infoTitle">ⓘ Info e guida rapida</h2></div>
+      <button id="closeInfoTop" class="button secondary icon-close" type="button" aria-label="Chiudi informazioni" title="Chiudi">✕</button>
+    </div>
+    <p id="infoIntro" class="info-intro">Guida essenziale per importare le quote, costruire il sistema e conservare le tue impostazioni.</p>
+    <div class="info-sections">
+      <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su Android scarica prima il bollettino e poi selezionalo da Download/Scaricati. L'importazione diretta dal sito può essere bloccata dal browser. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
+      <section><h3>2. Scegli gli esiti</h3><p>Puoi caricare al massimo <strong>10 partite</strong> e scegliere fino a <strong>2 esiti per partita</strong>. Dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
+      <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
+      <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
+      <section><h3>5. Backup e squadre</h3><p>Da “Backup e ripristino” esporta un JSON e conservalo fuori dal dispositivo. Il ripristino sostituisce le impostazioni locali dopo conferma. L'elenco squadre si può modificare; quello di riferimento incluso nell'app non è un aggiornamento live dal sito ufficiale.</p></section>
+      <section><h3>6. Installa sulla schermata Home</h3><p>Su Android usa “Installa app” oppure il menu ⋮ di Chrome → “Installa app” / “Aggiungi a schermata Home”. Su iPhone: Safari → Condividi → “Aggiungi alla schermata Home”. Le opzioni disponibili dipendono dal browser.</p></section>
+    </div>
+    <p class="info-responsible">Le quote possono cambiare. I calcoli sono indicativi e non garantiscono vincite: imposta un budget sostenibile e gioca responsabilmente.</p>
+    <div class="info-dialog-footer"><span>Guida rapida integrata</span><button id="closeInfo" class="button primary" type="button">Ho capito</button></div>
+  </dialog>
 
   <p id="installStatus" class="sr-only" aria-live="polite">L’app può essere installata quando il browser lo consente.</p>
   <details id="installHelp" class="install-help input-method-card" hidden>
