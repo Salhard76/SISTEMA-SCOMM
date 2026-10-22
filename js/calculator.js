@@ -28,3 +28,22 @@ export function formatEuro(value) {
 export function formatQuota(value) {
   return Number(value).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 }
+
+/** Intervalli economici delle colonne: quota totale e profitto netto dopo la puntata. */
+export function summarizeColumnRange(columns, puntata) {
+  if (!Array.isArray(columns) || columns.length === 0) return null;
+  const stake = Math.max(0, Number(puntata) || 0);
+  let minQuota = Infinity, maxQuota = -Infinity;
+  let minNet = Infinity, maxNet = -Infinity, count = 0;
+  for (const column of columns) {
+    const quota = Number(column?.quotaTotale);
+    if (!Number.isFinite(quota) || quota <= 0) continue;
+    const net = quota * stake - stake;
+    minQuota = Math.min(minQuota, quota);
+    maxQuota = Math.max(maxQuota, quota);
+    minNet = Math.min(minNet, net);
+    maxNet = Math.max(maxNet, net);
+    count++;
+  }
+  return count ? { minQuota, maxQuota, minNet, maxNet, count } : null;
+}

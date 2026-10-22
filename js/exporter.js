@@ -48,12 +48,13 @@ export function exportText(colonne, puntata) {
 export function printWithMode(mode) {
   const pageRule = document.getElementById?.('runtimePrintPageRule');
   const previousPageRule = pageRule?.textContent ?? '';
-  // Regola @page globale oltre ai nomi pagina CSS: aiuta i browser mobile che
-  // non applicano sempre in modo uniforme i page name (landscape/portrait).
+  // Regola @page globale: mantiene lo stesso orientamento nel browser desktop e nel print manager mobile.
   if (pageRule) pageRule.textContent = mode === 'table'
     ? '@page { size: A4 landscape; margin: 5mm; }'
     : '@page { size: A4 portrait; margin: 6mm; }';
   document.body.dataset.printMode = mode;
+  // Forza il ricalcolo sincrono di orientamento e contenuto prima del print manager mobile.
+  void document.documentElement?.offsetHeight;
   let cleaned = false;
   let timeoutId = null;
   const clear = () => {

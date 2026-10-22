@@ -5,6 +5,7 @@ import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS 
 import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
+import { summarizeColumnRange } from '../js/calculator.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
 import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from '../js/selection.js';
@@ -34,27 +35,27 @@ test('UI: rimosse le tre soglie statiche e presente la tabella dedicata alla sta
   assert.match(pageHtml, /id="printTableWrap"/);
   assert.doesNotMatch(pageJs, /\$\('(highOdds|maxHigh|minProb)'\)/);
 });
-test('Stampa: A4 integrale; colonne con sole quota totale e vincita netta', () => {
+test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e ridotto', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /@page\s*\{size:A4 portrait/);
-  assert.match(css, /@page columns\{size:A4 landscape/);
-  assert.match(css, /body\[data-print-mode="table"\] \.print-results-table/);
+  assert.match(css, /@page\{size:A4 portrait;margin:6mm\}/);
   assert.match(pageJs, /<th>Quota totale<\/th><th>Vincita netta<\/th>/);
   assert.match(pageJs, /event\.tipo === 'fissa' \? `<strong>/);
   assert.match(pageJs, /const usesHandicap = selected\.some\(outcome => selectionMarketKey\(outcome\) === 'handicap'\)/);
-  assert.match(pageJs, /handicapSuffix = usesHandicap/);
-  assert.match(pageJs, /`Handicap \${m\.handicap}`/);
   assert.match(pageJs, /const meta = \[m\.competizione, m\.data, m\.ora/);
-  assert.match(pageJs, /<table class=\"print-results-table\"><thead><tr><th>N°<\/th>\$\{printHeaders\}<th>Quota totale<\/th><th>Vincita netta<\/th>/);
-  assert.match(pageJs, /const allCols = state\.rawColumns/);
-  assert.match(pageJs, /classifyColumns\(allCols, state\.finalColumns\)/);
-  assert.match(pageJs, /class=\"\$\{rowClass\}\"/);
-  assert.match(pageJs, /Fondo grigio = colonne escluse dai filtri/);
-  assert.match(css, /tbody tr\.excluded-column td\{background:#dedede!important/);
-  assert.match(pageJs, /function refreshGeneratedColumnsNow\(\)/);
+  assert.match(pageJs, /integralRangeMarkup\('Sistema integrale', fullRange\)/);
+  assert.match(pageJs, /integralRangeMarkup\('Sistema ridotto', reducedRange, true\)/);
+  assert.match(pageJs, /Quota minima/);
+  assert.match(pageJs, /Quota massima/);
+  assert.match(pageJs, /Vincita netta minima/);
+  assert.match(pageJs, /Vincita netta massima/);
+  assert.match(pageJs, /<span class="integral-outcome"><span>\$\{escapeHtml\(o\.label\)\}<\/span><strong>\$\{formatQuota\(o\.quota\)\}<\/strong>/);
+  assert.doesNotMatch(pageJs, /<b>@ \$\{formatQuota\(o\.quota\)\}<\/b>/, 'la stampa integrale non usa chiocciole come prefisso delle quote');
+  assert.doesNotMatch(pageJs, /fixedOutcome\?\.label \|\| ''\} @ \$\{formatQuota/);
+  assert.match(pageJs, /function integralRangeMarkup\(/);
+  assert.match(pageJs, /printWithMode\('integral'\)/);
 });
 
-test('Stampa multipiattaforma: massimo 32 colonne sviluppate per ciascun foglio', () => {
+test('Stampa multipiattaforma: massimo 32 colonne per foglio e nessun salto dopo l’ultima pagina', () => {
   assert.equal(PRINT_COLUMNS_PER_PAGE, 32);
   const source = Array.from({ length: 1024 }, (_, i) => i + 1);
   const pages = splitPrintRows(source);
@@ -67,23 +68,48 @@ test('Stampa multipiattaforma: massimo 32 colonne sviluppate per ciascun foglio'
   assert.deepEqual(splitPrintRows([]), []);
   assert.throws(() => splitPrintRows(source, 0), /intero positivo/);
   assert.match(pageJs, /splitPrintRows\(classifiedColumns, PRINT_COLUMNS_PER_PAGE\)/);
-  assert.match(pageJs, /data-print-rows=\"\$\{pageRows\.length\}\"/);
+  assert.match(pageJs, /data-print-rows="\$\{pageRows\.length\}"/);
+  assert.match(pageJs, /printMethodNote = '<span class=\"print-method-note\">/);
+  assert.doesNotMatch(pageJs, /pageIndex === pages\.length - 1 \? '<p class=\"print-footnote\"/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /@page columns\{size:A4 landscape/);
-  assert.match(css, /body\[data-print-mode=\"table\"\] \.print-page-table\{[^}]*page-break-inside:avoid/);
-  assert.match(css, /body\[data-print-mode=\"table\"\] \.print-page-table:last-child\{break-after:auto/);
-  assert.match(css, /body\[data-print-mode=\"table\"\] main>\.panel:last-child\{display:block/);
-  assert.doesNotMatch(css, /body\[data-print-mode=\"table\"\] \.panel\{display:block/);
+  assert.match(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:auto!important;page-break-after:auto!important/);
+  assert.match(css, /body\[data-print-mode="table"\] \.print-page-table\+\.print-page-table\{break-before:page!important;page-break-before:always!important/);
+  assert.doesNotMatch(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:page!important/);
+  assert.doesNotMatch(css, /body\[data-print-mode="table"\]\{page:columns/);
+  assert.equal((css.match(/@page/g) || []).length, 1, 'una sola dichiarazione @page nel CSS; l’orientamento viene aggiornato dal print mode');
+  assert.match(css, /body\[data-print-mode="table"\] main>\.panel:last-child\{display:block/);
+  assert.doesNotMatch(css, /body\[data-print-mode="table"\] \.panel\{display:block/);
 });
-test('Mobile: la griglia quote resta scorrevole e la tabella risultati usa schede adattive', () => {
-  assert.match(pageJs, /data-label=\"Esiti selezionati\"/);
-  assert.match(pageJs, /data-label=\"Profitto teorico stimato\"/);
+
+test('Foglio quote: squadre congelate a sinistra; metadati scorrono dietro le squadre e le intestazioni restano in alto', () => {
+  assert.match(pageJs, /class="quote-team team1-cell"/);
+  assert.match(pageJs, /class="quote-team team2-cell"/);
+  assert.match(pageJs, /class="quote-fixed-head quote-team-head team1-head"/);
+  assert.match(pageJs, /class="quote-fixed-head quote-team-head team2-head"/);
+  assert.ok(pageJs.indexOf('quote-team team1-cell') < pageJs.indexOf('quote-date quote-meta-col'), 'le squadre precedono i metadati nella griglia');
+  assert.ok(pageJs.indexOf('team1-head') < pageJs.indexOf('quote-date-head'), 'le intestazioni squadra precedono data/ora');
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.quote-sheet-scroll\{width:100%;max-width:100%;max-height:68vh;overflow:auto/);
-  assert.match(css, /\.results-table thead\{display:none\}/);
-  assert.match(css, /\.results-table td::before\{content:attr\(data-label\)/);
-  assert.match(css, /html,body\{max-width:100%;overflow-x:clip/);
-  assert.match(css, /body\[data-print-mode=\"integral\"\] \.integral-match\{break-inside:avoid/);
+  assert.match(css, /\.quote-sheet thead th\{position:sticky;top:0/);
+  assert.match(css, /\.quote-sheet tbody \.team1-cell,\.quote-sheet thead \.team1-head\{left:0\}/);
+  assert.match(css, /\.quote-sheet tbody \.team2-cell,\.quote-sheet thead \.team2-head\{left:var\(--quote-team-width\)\}/);
+  assert.match(css, /@media\(max-width:800px\)\{\.quote-sheet-scroll/);
+  assert.match(css, /\.quote-sheet \.quote-code\{display:none\}/);
+  assert.match(css, /\.quote-sheet-scroll\{--quote-team-width:118px/);
+  assert.match(css, /@media\(max-width:420px\)\{\.quote-sheet-scroll\{--quote-team-width:80px/);
+});
+
+test('Calcolo riepilogo economico: quote e profitto netti min/max corretti e input malformati ignorati', () => {
+  assert.deepEqual(summarizeColumnRange([
+    { quotaTotale: 2 }, { quotaTotale: 3.5 }, { quotaTotale: 10 }
+  ], 1), { minQuota: 2, maxQuota: 10, minNet: 1, maxNet: 9, count: 3 });
+  assert.deepEqual(summarizeColumnRange([{ quotaTotale: 2 }, { quotaTotale: 4 }], 0.5), {
+    minQuota: 2, maxQuota: 4, minNet: 0.5, maxNet: 1.5, count: 2
+  });
+  assert.deepEqual(summarizeColumnRange([{ quotaTotale: 4 }, { quotaTotale: 'no' }, { quotaTotale: -2 }], 1), {
+    minQuota: 4, maxQuota: 4, minNet: 3, maxNet: 3, count: 1
+  });
+  assert.equal(summarizeColumnRange([], 1), null);
+  assert.equal(summarizeColumnRange([{ quotaTotale: 0 }, { quotaTotale: NaN }], 1), null);
 });
 
 test('UI: gestione squadre compatta con finestra separata', () => {
@@ -521,6 +547,7 @@ test('Foglio quote: il ridisegno conserva scroll e focus; puntata con debounce; 
   assert.match(pageJs, /stakeRenderTimeout = setTimeout\(\(\) => \{ if \(state\.lastGenerated\) renderTable\(\); \}, 300\)/);
   assert.match(pageJs, /\$\('printTable'\)\.addEventListener\('click', \(\) => \{/);
   assert.match(pageJs, /refreshGeneratedColumnsNow\(\) \|\| !state\.rawColumns\.length/);
+  assert.match(readFileSync(new URL('../js/exporter.js', import.meta.url), 'utf8'), /void document\.documentElement\?\.offsetHeight/);
   assert.match(pageJs, /buildPrintTable\(\);\s*stampaTabella\(\);/);
 });
 test('Limiti: si possono caricare più partite di quelle selezionabili, ma non più di 10 selezionate', () => {

@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=mobile-print-20261022';
-import { generateSystem } from './js/generator.js?v=mobile-print-20261022';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=mobile-print-20261022';
-import { formatEuro, formatQuota } from './js/calculator.js?v=mobile-print-20261022';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=mobile-print-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=mobile-print-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=mobile-print-20261022';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=mobile-print-20261022';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=mobile-print-20261022';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=mobile-print-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sticky-print-v6-20261022';
+import { generateSystem } from './js/generator.js?v=sticky-print-v6-20261022';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sticky-print-v6-20261022';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sticky-print-v6-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sticky-print-v6-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sticky-print-v6-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sticky-print-v6-20261022';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sticky-print-v6-20261022';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sticky-print-v6-20261022';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sticky-print-v6-20261022';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -327,10 +327,11 @@ function renderMatches() {
     ? { matchId: document.activeElement.dataset.matchId, key: document.activeElement.dataset.outcomeKey } : null;
   const groups = buildQuoteSheetGroups(state.matches);
   const groupHeaders = groups.map(group => `<th class="quote-group" colspan="${group.columns.length}">${escapeHtml(group.label)}</th>`).join('');
-  const outcomeHeaders = groups.flatMap(group => group.columns).map(column => `<th class="quote-outcome-head" title="${escapeHtml(column.markets.join(' / '))}">${escapeHtml(column.label)}</th>`).join('');
+  const quoteColumns = groups.flatMap(group => group.columns);
+  const outcomeHeaders = quoteColumns.map(column => `<th class="quote-outcome-head" title="${escapeHtml(column.markets.join(' / '))}">${escapeHtml(column.label)}</th>`).join('');
   const rows = state.matches.map(match => {
     normalizeMatchSelection(match);
-    const quoteCells = groups.flatMap(group => group.columns).map(column => {
+    const quoteCells = quoteColumns.map(column => {
       if (column.staticField) {
         const value = match[column.staticField];
         return `<td class="quote-cell quote-cell-static"><span>${escapeHtml(value || '—')}</span></td>`;
@@ -344,17 +345,17 @@ function renderMatches() {
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
     return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''}" data-match="${escapeHtml(match.id)}">
-      <td class="quote-date">${escapeHtml(match.data || '—')}<button type="button" class="remove-match" data-id="${escapeHtml(match.id)}" aria-label="Rimuovi ${escapeHtml(matchName)}" title="Rimuovi partita">×</button></td>
-      <td class="quote-time">${escapeHtml(match.ora || '—')}</td>
-      <td class="quote-code">${escapeHtml(match.palinsesto || match.pal || '—')}</td>
-      <td class="quote-code">${escapeHtml(match.avvenimento || match.avv || '—')}</td>
-      <th scope="row" class="quote-team">${escapeHtml(match.casa)}</th>
-      <td class="quote-team">${escapeHtml(match.trasferta)}</td>
+      <th scope="row" class="quote-team team1-cell">${escapeHtml(match.casa)}</th>
+      <td class="quote-team team2-cell">${escapeHtml(match.trasferta)}</td>
+      <td class="quote-date quote-meta-col">${escapeHtml(match.data || '—')}<button type="button" class="remove-match" data-id="${escapeHtml(match.id)}" aria-label="Rimuovi ${escapeHtml(matchName)}" title="Rimuovi partita">×</button></td>
+      <td class="quote-time quote-meta-col">${escapeHtml(match.ora || '—')}</td>
+      <td class="quote-code quote-meta-col">${escapeHtml(match.palinsesto || match.pal || '—')}</td>
+      <td class="quote-code quote-meta-col">${escapeHtml(match.avvenimento || match.avv || '—')}</td>
       ${quoteCells}
     </tr>`;
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
-    <th class="quote-fixed-head" rowspan="2">Data</th><th class="quote-fixed-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-code" rowspan="2">Avv.</th><th class="quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}
+    <th class="quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th><th class="quote-fixed-head quote-meta-col quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-code" rowspan="2">Avv.</th>${groupHeaders}
     </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote dello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
@@ -555,9 +556,10 @@ function buildPrintTable() {
   const totalStake = includedCount * stake;
   const activeEvents = readEvents();
   const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
+  const printMethodNote = '<span class="print-method-note">Vincita netta = quota × puntata − puntata; bonus esclusi.</span>';
   const legend = excludedCount
-    ? `<p class="print-legend"><strong>Fondo grigio = colonne escluse dai filtri e non considerate nel sistema ridotto.</strong> Colonne considerate: ${includedCount}; escluse: ${excludedCount}.</p>`
-    : `<p class="print-legend">Nessuna colonna esclusa dai filtri. Tutte le ${includedCount} colonne sono considerate.</p>`;
+    ? `<p class="print-legend"><strong>Fondo grigio = colonne escluse dai filtri e non considerate nel sistema ridotto.</strong> Colonne considerate: ${includedCount}; escluse: ${excludedCount}.${printMethodNote}</p>`
+    : `<p class="print-legend">Nessuna colonna esclusa dai filtri. Tutte le ${includedCount} colonne sono considerate.${printMethodNote}</p>`;
   const pages = splitPrintRows(classifiedColumns, PRINT_COLUMNS_PER_PAGE);
   const pageMarkup = pages.map((pageRows, pageIndex) => {
     const firstId = pageRows[0]?.column.id ?? 0;
@@ -577,7 +579,6 @@ function buildPrintTable() {
       <p class="print-meta">Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · Puntata/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}</p>
       ${pageIndex === 0 ? legend : ''}
       <table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table>
-      ${pageIndex === pages.length - 1 ? '<p class="print-footnote">Vincita netta = (quota totale × puntata per colonna) − puntata. Le righe grigie sono escluse dal sistema ridotto. Non include eventuali bonus; quote soggette a variazione.</p>' : ''}
     </section>`;
   }).join('');
   $('printTableWrap').innerHTML = pageMarkup;
@@ -812,7 +813,7 @@ $('matches').addEventListener('click', event => {
   else if (match.selezionati.length === 1) {
     const fixedKey = match.selezionati[0];
     const fixedOutcome = match.esiti.find(item => `${item.market}:${item.outcome}` === fixedKey);
-    status(`Fissa automatica: ${match.casa} – ${match.trasferta}, ${fixedOutcome?.label || ''} @ ${formatQuota(fixedOutcome?.quota)}.`, 'success');
+    status(`Fissa automatica: ${match.casa} – ${match.trasferta}, ${fixedOutcome?.label || ''}, quota ${formatQuota(fixedOutcome?.quota)}.`, 'success');
   } else status(`Selezioni rimosse da ${match.casa} – ${match.trasferta}.`);
 });
 $('dynamicFilters').addEventListener('input', event => {
@@ -874,16 +875,39 @@ $('printTable').addEventListener('click', () => {
   buildPrintTable();
   stampaTabella();
 });
+function integralRangeMarkup(title, range, isReduced = false) {
+  if (!range) return `<section class="integral-range"><h3>${escapeHtml(title)}</h3><p class="integral-range-empty">Nessuna colonna disponibile con i filtri attuali.</p></section>`;
+  return `<section class="integral-range ${isReduced ? 'integral-range-reduced' : ''}">
+    <div class="integral-range-heading"><h3>${escapeHtml(title)}</h3><span>${range.count.toLocaleString('it-IT')} colonne</span></div>
+    <div class="integral-metric-grid">
+      <div class="integral-metric"><span>Quota minima</span><strong>${formatQuota(range.minQuota)}</strong></div>
+      <div class="integral-metric"><span>Quota massima</span><strong>${formatQuota(range.maxQuota)}</strong></div>
+      <div class="integral-metric"><span>Vincita netta minima</span><strong>${formatEuro(range.minNet)}</strong></div>
+      <div class="integral-metric"><span>Vincita netta massima</span><strong>${formatEuro(range.maxNet)}</strong></div>
+    </div>
+  </section>`;
+}
 $('printIntegral').addEventListener('click', () => {
+  if (!refreshGeneratedColumnsNow() || !state.finalColumns.length) return;
   const matches = state.matches.filter(m => (m.selezionati || []).length);
   const integral = $('integralPrint');
+  const stake = Math.max(0, Number($('stake').value) || 0);
+  const fullRange = summarizeColumnRange(state.rawColumns, stake);
+  const reducedRange = summarizeColumnRange(state.finalColumns, stake);
   const choices = matches.map((m, i) => {
     const selected = (m.selezionati || []).map(key => m.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
     const usesHandicap = selected.some(outcome => selectionMarketKey(outcome) === 'handicap');
     const meta = [m.competizione, m.data, m.ora, usesHandicap && String(m.handicap || '').trim() ? `Handicap ${m.handicap}` : ''].filter(Boolean).join(' · ');
-    return `<article class="integral-match"><span class="integral-number">${i+1}</span><div><strong>${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</strong><small>${escapeHtml(meta)}</small><p>${selected.map(o => `${escapeHtml(o.label)} <b>@ ${formatQuota(o.quota)}</b>`).join(' &nbsp; / &nbsp; ')}</p></div><em>${selected.length === 2 ? 'DOPPIA' : 'FISSA'}</em></article>`;
+    const kind = selected.length === 2 ? 'integral-double' : 'integral-fixed';
+    const outcomeChips = selected.map(o => `<span class="integral-outcome"><span>${escapeHtml(o.label)}</span><strong>${formatQuota(o.quota)}</strong></span>`).join('');
+    return `<article class="integral-match ${kind}"><span class="integral-number">${i+1}</span><div class="integral-match-content"><div class="integral-match-heading"><strong>${escapeHtml(m.casa)} <span class="integral-versus">–</span> ${escapeHtml(m.trasferta)}</strong><em>${selected.length === 2 ? 'DOPPIA' : 'FISSA'}</em></div><small>${escapeHtml(meta || 'Dettagli partita non disponibili')}</small><div class="integral-outcomes">${outcomeChips}</div></div></article>`;
   }).join('');
-  integral.innerHTML = `<h1>Sistema integrale</h1><p class="integral-subtitle">Selezioni complete · ${matches.length} partite · ${state.rawColumns.length.toLocaleString('it-IT')} colonne teoriche</p>${choices}<div class="integral-note">Questo foglio riepiloga tutte le selezioni del sistema, senza stampare l'elenco delle singole colonne. Quote indicative, soggette a variazione.</div>`;
+  const sameRanges = state.rawColumns.length === state.finalColumns.length;
+  integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark">SB</div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1><p class="integral-subtitle">${matches.length} partite selezionate · ${state.rawColumns.length.toLocaleString('it-IT')} colonne sviluppate · ${state.finalColumns.length.toLocaleString('it-IT')} considerate · Puntata per colonna ${formatEuro(stake)}</p></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
+    <div class="integral-section-title"><h2>Riepilogo delle selezioni</h2><span>Quota singola per esito</span></div>
+    <div class="integral-match-list">${choices}</div>
+    <section class="integral-economics"><div class="integral-section-title"><h2>Quote e vincite minime / massime</h2><span>Importi teorici · senza bonus</span></div><div class="integral-ranges">${integralRangeMarkup('Sistema integrale', fullRange)}${integralRangeMarkup('Sistema ridotto', reducedRange, true)}</div>${sameRanges ? '<p class="integral-range-caption">In assenza di colonne escluse, il sistema integrale e quello ridotto coincidono.</p>' : '<p class="integral-range-caption">Il sistema integrale include tutte le combinazioni sviluppate; il ridotto considera soltanto quelle che superano i filtri.</p>'}</section>
+    <div class="integral-note"><strong>Nota di calcolo.</strong> Vincita netta = (quota totale × puntata per colonna) − puntata. Le cifre sono stime, non includono eventuali bonus e dipendono dalle quote effettive accettate.</div>`;
   printWithMode('integral');
 });
 // Finestra Info: dialog nativo, chiudibile da pulsante, backdrop o tasto Esc.

@@ -1,10 +1,11 @@
 # Sistema Scommesse Builder
 
-## Novità versione 5 — mobile e stampa
-- **Samsung Galaxy A27 5G**: pagina senza scorrimento orizzontale generale; il solo foglio quote resta scorrevole in orizzontale. I risultati si leggono in schede verticali con etichette per ciascun valore.
-- **Stampa colonne uniforme**: forza A4 orizzontale anche tramite una regola `@page` globale durante la stampa, oltre al layout nominato; A4 verticale per il riepilogo integrale.
-- **32 combinazioni per foglio**: stampa separa esplicitamente le colonne in pagine da massimo 32 righe. Le combinazioni dalla 33ª continuano nel foglio successivo; fino a 1.024 combinazioni saranno al massimo 32 fogli.
-- **Controlli**: layout mobile verificato a 320, 360, 384, 412 e 600 px CSS; PDF di prova con 70 combinazioni produce 3 fogli (32 + 32 + 6), e il riepilogo integrale di 10 partite entra in un A4 verticale. Il test fisico su Samsung e stampante resta necessario per confermare le opzioni native del sistema di stampa Android.
+## Novità versione 6 — griglia congelata e stampa rifinita
+- **Foglio quote stile Excel**: le due squadre restano bloccate a sinistra anche sul desktop; le intestazioni dei mercati restano in alto durante lo scorrimento verticale. Data/ora scorrono dopo i nomi delle squadre, mentre Pal./Avv. sono nascosti negli schermi stretti per lasciare spazio alle quote. Lo scorrimento orizzontale rimane confinato al foglio.
+- **Stampa senza fogli vuoti**: orientamento controllato con un'unica regola `@page`; le pagine successive iniziano con `break-before`, senza interruzione forzata dopo l'ultima. La nota di calcolo è nella prima pagina e non può creare una pagina finale quasi vuota.
+- **32 combinazioni per foglio**: esattamente 32 righe per A4 orizzontale; dalla combinazione 33 si passa al foglio successivo. Le 1.024 combinazioni generano 32 pagine, non 33.
+- **Sistema integrale più curato**: intestazione verde, badge per fisse/doppie, quote senza chiocciole e riepilogo economico finale con quota minima/massima e vincita netta minima/massima sia per il sistema integrale sia per quello ridotto.
+- **Verifiche**: test automatizzati aggiornati; PDF di prova con 32, 33, 70 e 1.024 righe e riepilogo integrale di 10 partite. L'impaginazione di prova rispetta 1, 2, 3, 32 e 1 pagina rispettivamente. Il collaudo nativo sul Samsung e sulla stampante resta necessario perché il print manager Android può applicare opzioni proprie.
 
 ## Novità versione 3
 - **Foglio quote**: dopo ogni tocco lo scorrimento orizzontale e il focus restano dove sono (prima tornavano a sinistra); colonne squadra più strette su smartphone, così si vedono più quote.
@@ -56,7 +57,7 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 11. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
 
 ## Limiti e uso da smartphone
-L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, campi e pulsanti adattivi, risultati in schede verticali senza scorrimento orizzontale dell’intera pagina. Solo il foglio quote mantiene lo scorrimento orizzontale, indipendentemente dalla larghezza dello schermo. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
+L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, campi e pulsanti adattivi, risultati in schede verticali senza scorrimento orizzontale dell’intera pagina. Solo il foglio quote mantiene lo scorrimento orizzontale, indipendentemente dalla larghezza dello schermo. Le due colonne squadra rimangono congelate a sinistra e le intestazioni dei mercati restano in alto mentre si scorre verticalmente. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
 
 ## Stima Bonus Multipla Sisal
 L'interfaccia include una stima facoltativa del Bonus Multipla. La stima considera eventi con quota almeno 1,25 e applica un fattore composto del 4% dal quinto evento idoneo, con limite indicativo del 177%. Le FAQ Sisal descrivono, ad esempio, circa +8% per 6 eventi e +12% per 7 eventi idonei. Questa è una simulazione informativa: non certifica che il bonus venga riconosciuto alle singole colonne di un sistema. Controllare sempre il bonus effettivamente mostrato da Sisal sul biglietto prima di confermare. Fonte: https://www.sisal.it/scommesse-matchpoint/faq
