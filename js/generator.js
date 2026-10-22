@@ -1,6 +1,6 @@
 /* Generatore con limiti strutturali: massimo 10 partite, 2 esiti per partita e 1.024 colonne. */
-import { quotaTotale } from './calculator.js?v=v3-20261022';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=v3-20261022';
+import { quotaTotale } from './calculator.js?v=v4-20261022';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=v4-20261022';
 
 export { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS };
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
-import { applyFilters, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
+import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
 import { printWithMode, buildCsv } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
@@ -46,6 +46,20 @@ test('Stampa: A4 integrale; colonne con sole quota totale e vincita netta', () =
   assert.match(pageJs, /`Handicap \${m\.handicap}`/);
   assert.match(pageJs, /const meta = \[m\.competizione, m\.data, m\.ora/);
   assert.match(pageJs, /<table class=\"print-results-table\"><thead><tr><th>N°<\/th>\$\{printHeaders\}<th>Quota totale<\/th><th>Vincita netta<\/th>/);
+  assert.match(pageJs, /const allCols = state\.rawColumns/);
+  assert.match(pageJs, /classifyColumns\(allCols, state\.finalColumns\)/);
+  assert.match(pageJs, /class=\"\$\{rowClass\}\"/);
+  assert.match(pageJs, /Fondo grigio = colonne escluse dai filtri/);
+  assert.match(css, /tbody tr\.excluded-column td\{background:#dedede!important/);
+  assert.match(pageJs, /function refreshGeneratedColumnsNow\(\)/);
+});
+test('UI: gestione squadre compatta con finestra separata', () => {
+  assert.match(pageHtml, /<dialog id="teamDialog"[^>]*aria-labelledby="teamDialogTitle"/);
+  assert.match(pageHtml, /id="openTeamManager"[^>]*aria-haspopup="dialog"[^>]*aria-controls="teamDialog"/);
+  assert.match(pageHtml, /id="teamListInput"/);
+  assert.doesNotMatch(pageHtml, /<section class="input-method-card team-method"/);
+  assert.match(pageJs, /function openTeamDialog\(trigger\)/);
+  assert.match(pageJs, /openTeamManagerReminder/);
 });
 test('UI: griglia quote al posto dei controlli Fissa/Doppia', () => {
   assert.match(pageJs, /class=\"quote-sheet\"/);
@@ -231,6 +245,14 @@ test('Generatore: rifiuta più di due esiti per una partita variabile', () => {
   const result = generateSystem([event(1, [['1', 2.1], ['X', 3.2], ['2', 3.6]])]);
   assert.equal(result.exceeded, true);
   assert.equal(result.reason, 'too_many_choices');
+});
+test('Stampa colonne: classifica le escluse dai filtri mantenendo l’ordine integrale', () => {
+  const all = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+  const reduced = [all[0], all[2]];
+  assert.deepEqual(classifyColumns(all, reduced).map(item => [item.column.id, item.included]), [
+    [1, true], [2, false], [3, true], [4, false]
+  ]);
+  assert.equal(classifyColumns(all, []).filter(item => item.included).length, 0);
 });
 test('Filtri: max 3 Over su quattro doppie lascia 15 colonne, non 11', () => {
   const events = Array.from({ length: 4 }, (_, i) => event(i + 1, ouPair));
@@ -459,7 +481,9 @@ test('Foglio quote: il ridisegno conserva scroll e focus; puntata con debounce; 
   assert.match(pageJs, /scroller\.scrollLeft = keepScroll\.left/);
   assert.match(pageJs, /again\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(pageJs, /stakeRenderTimeout = setTimeout\(\(\) => \{ if \(state\.lastGenerated\) renderTable\(\); \}, 300\)/);
-  assert.match(pageJs, /\$\('printTable'\)\.addEventListener\('click', \(\) => \{ buildPrintTable\(\); stampaTabella\(\); \}\)/);
+  assert.match(pageJs, /\$\('printTable'\)\.addEventListener\('click', \(\) => \{/);
+  assert.match(pageJs, /refreshGeneratedColumnsNow\(\) \|\| !state\.rawColumns\.length/);
+  assert.match(pageJs, /buildPrintTable\(\);\s*stampaTabella\(\);/);
 });
 test('Limiti: si possono caricare più partite di quelle selezionabili, ma non più di 10 selezionate', () => {
   assert.ok(MAX_LOADED_MATCHES >= MAX_MATCHES);

@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=v3-20261022';
-import { generateSystem } from './js/generator.js?v=v3-20261022';
-import { applyFilters, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=v3-20261022';
-import { formatEuro, formatQuota } from './js/calculator.js?v=v3-20261022';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=v3-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=v3-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=v3-20261022';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=v3-20261022';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=v3-20261022';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=v3-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=v4-20261022';
+import { generateSystem } from './js/generator.js?v=v4-20261022';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=v4-20261022';
+import { formatEuro, formatQuota } from './js/calculator.js?v=v4-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=v4-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=v4-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=v4-20261022';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=v4-20261022';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=v4-20261022';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=v4-20261022';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -67,7 +67,6 @@ $('refreshOfficialTeams').addEventListener('click', async () => {
     }
     const merged = preserveAliasesForOfficialTeams(official, getSerieATeamLines());
     $('teamListInput').value = merged.join('\n');
-    $('teamManager').open = true;
     $('officialTeamStatus').textContent = `Elenco di riferimento ${data.season || 'corrente'} caricato (${official.length} squadre, verificato il ${data.verifiedAt || '—'}). Controlla il risultato e premi “Salva elenco” per applicarlo. Fonte: Lega Serie A.`;
     $('teamListStatus').textContent = 'L’elenco è stato caricato nella casella di modifica ma non è ancora salvato: nessuna partita o quota è stata modificata.';
     $('teamListInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -113,10 +112,41 @@ $('resetTeamList').addEventListener('click', () => {
   $('teamListStatus').textContent = `Ripristinato l’elenco base della stagione 2026/27: ${SERIE_A_TEAMS.length} squadre.`;
   status('Ripristinato l’elenco squadre base. Le modifiche si applicheranno alla prossima importazione PDF.', 'success');
 });
-$('openTeamManager').addEventListener('click', () => {
-  $('teamManager').open = true;
-  $('teamManager').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  $('teamListInput').focus({ preventScroll: true });
+const teamDialog = $('teamDialog');
+let teamDialogReturnFocus = $('openTeamManager');
+function closeTeamDialog() {
+  if (!teamDialog) return;
+  if (typeof teamDialog.close === 'function' && teamDialog.open) teamDialog.close();
+  else teamDialog.removeAttribute('open');
+  delete teamDialog.dataset.fallbackOpen;
+  document.body.classList.remove('team-dialog-fallback');
+  teamDialogReturnFocus?.focus({ preventScroll: true });
+}
+function openTeamDialog(trigger) {
+  if (!teamDialog) return;
+  teamDialogReturnFocus = trigger || $('openTeamManager');
+  if (typeof teamDialog.showModal === 'function') teamDialog.showModal();
+  else {
+    teamDialog.dataset.fallbackOpen = 'true';
+    document.body.classList.add('team-dialog-fallback');
+    teamDialog.setAttribute('open', '');
+  }
+  $('teamListInput')?.focus({ preventScroll: true });
+}
+$('openTeamManager').addEventListener('click', event => openTeamDialog(event.currentTarget));
+$('openTeamManagerReminder')?.addEventListener('click', event => openTeamDialog(event.currentTarget));
+$('closeTeamDialog').addEventListener('click', closeTeamDialog);
+$('closeTeamDialogTop').addEventListener('click', closeTeamDialog);
+teamDialog?.addEventListener('click', event => {
+  if (event.target === teamDialog) closeTeamDialog();
+});
+teamDialog?.addEventListener('close', () => {
+  delete teamDialog.dataset.fallbackOpen;
+  document.body.classList.remove('team-dialog-fallback');
+  teamDialogReturnFocus?.focus({ preventScroll: true });
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && teamDialog?.open && teamDialog.dataset.fallbackOpen === 'true') closeTeamDialog();
 });
 $('confirmTeamList').addEventListener('click', () => {
   const draft = $('teamListInput').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
@@ -481,11 +511,13 @@ function updateCounter() {
 function renderTable() {
   const cols = state.finalColumns;
   const stake = Math.max(0, Number($('stake').value) || 0);
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0;
+  $('exportCsv').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0;
+  // La stampa conserva tutte le combinazioni: quelle escluse dai filtri vengono grigiate.
+  $('printTable').disabled = state.rawColumns.length === 0;
   if (!cols.length) {
-    $('tableWrap').innerHTML = '<p class="empty-state">Nessuna colonna dopo i filtri. Modifica i filtri o le selezioni.</p>';
-    $('printTableWrap').innerHTML = ''; 
-    $('summary').textContent = `Prima: ${state.rawColumns.length.toLocaleString('it-IT')} colonne · Dopo: 0 colonne · Puntata totale: ${formatEuro(0)}.`;
+    $('tableWrap').innerHTML = '<p class="empty-state">Nessuna colonna dopo i filtri. Modifica i filtri. La stampa colonne resta disponibile e mostrerà in grigio tutte le colonne escluse.</p>';
+    $('printTableWrap').innerHTML = '';
+    $('summary').textContent = `Colonne sviluppate: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne considerate: 0 · Colonne escluse dai filtri: ${state.rawColumns.length.toLocaleString('it-IT')} · Puntata totale considerata: ${formatEuro(0)}.`;
     return;
   }
   const totalStake = cols.length * stake;
@@ -514,23 +546,50 @@ function renderTable() {
   $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
 }
 function buildPrintTable() {
-  const cols = state.finalColumns;
-  if (!cols.length) { $('printTableWrap').innerHTML = ''; return; }
+  const allCols = state.rawColumns;
+  if (!allCols.length) { $('printTableWrap').innerHTML = ''; return; }
+  const classifiedColumns = classifyColumns(allCols, state.finalColumns);
+  const includedCount = classifiedColumns.filter(item => item.included).length;
+  const excludedCount = Math.max(0, allCols.length - includedCount);
   const stake = Math.max(0, Number($('stake').value) || 0);
-  const totalStake = cols.length * stake;
+  const totalStake = includedCount * stake;
   const activeEvents = readEvents();
   const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
-  const printRows = cols.map((column, index) => {
+  const printRows = classifiedColumns.map(({ column, included }) => {
+    const rowClass = included ? 'considered-column' : 'excluded-column';
     const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
     const eventCells = activeEvents.map(event => {
       const label = escapeHtml(selectedByEvent.get(event.id)?.label || '—');
       return `<td>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
     }).join('');
     const netWin = column.quotaTotale * stake - stake;
-    return `<tr><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
+    return `<tr class="${rowClass}" data-column-id="${escapeHtml(column.id)}"><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
   }).join('');
-  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">${cols.length} colonne · Puntata per colonna ${formatEuro(stake)} · Costo totale ${formatEuro(totalStake)}</p><table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Vincita netta calcolata come (quota totale × puntata per colonna) − puntata. Non include eventuali bonus. Quote soggette a variazione.</p>`;
+  const legend = excludedCount
+    ? `<p class="print-legend"><strong>Fondo grigio = colonne escluse dai filtri e non considerate nel sistema ridotto.</strong> Colonne considerate: ${includedCount}; escluse: ${excludedCount}.</p>`
+    : `<p class="print-legend">Nessuna colonna esclusa dai filtri. Tutte le ${includedCount} colonne sono considerate.</p>`;
+  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">Colonne sviluppate: ${allCols.length} · considerate dopo i filtri: ${includedCount} · escluse: ${excludedCount} · Puntata per colonna ${formatEuro(stake)} · Costo totale delle colonne considerate ${formatEuro(totalStake)}</p>${legend}<table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Vincita netta calcolata come (quota totale × puntata per colonna) − puntata. Le righe grigie sono escluse dal costo del sistema ridotto. Non include eventuali bonus. Quote soggette a variazione.</p>`;
 }
+
+// Ricalcola direttamente dai valori correnti dei filtri prima di esportare o stampare,
+// senza dipendere dal debounce dell'evento input (ad esempio un tocco rapido su Stampa).
+function refreshGeneratedColumnsNow() {
+  if (!state.lastGenerated) return false;
+  const built = buildBase();
+  if (built.error) {
+    status(built.error, 'error');
+    return false;
+  }
+  state.rawColumns = built.result.colonne;
+  const filtered = applyFilters(state.rawColumns, collectFilters());
+  state.finalColumns = filtered.colonne;
+  state.exclusive = built.exclusive;
+  $('beforeCount').textContent = filtered.colonnePrima.toLocaleString('it-IT');
+  $('afterCount').textContent = filtered.colonneDopo.toLocaleString('it-IT');
+  renderTable();
+  return true;
+}
+
 let pdfJsBase = '';
 let pdfJsLoadPromise = null;
 async function loadPdfJs() {
@@ -792,9 +851,17 @@ Vuoi procedere comunque?`)) return;
   renderTable();
   status('Sistema generato. Puoi esportare il CSV leggibile, stampare il sistema integrale o le singole colonne.', 'success');
 });
-$('exportCsv').addEventListener('click', () => exportCSV(state.finalColumns));
-$('exportText').addEventListener('click', () => exportText(state.finalColumns, Math.max(0, Number($('stake').value) || 0)));
-$('printTable').addEventListener('click', () => { buildPrintTable(); stampaTabella(); });
+$('exportCsv').addEventListener('click', () => {
+  if (refreshGeneratedColumnsNow() && state.finalColumns.length) exportCSV(state.finalColumns);
+});
+$('exportText').addEventListener('click', () => {
+  if (refreshGeneratedColumnsNow() && state.finalColumns.length) exportText(state.finalColumns, Math.max(0, Number($('stake').value) || 0));
+});
+$('printTable').addEventListener('click', () => {
+  if (!refreshGeneratedColumnsNow() || !state.rawColumns.length) return;
+  buildPrintTable();
+  stampaTabella();
+});
 $('printIntegral').addEventListener('click', () => {
   const matches = state.matches.filter(m => (m.selezionati || []).length);
   const integral = $('integralPrint');

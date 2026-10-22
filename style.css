@@ -27,9 +27,14 @@ label{display:block;font-size:.9rem;font-weight:700;margin-bottom:.35rem}input,t
   body[data-print-mode="table"] .table-wrap{display:none!important}
   body[data-print-mode="table"] .print-table-wrap{display:block!important;width:100%;color:#000;font-family:Arial,sans-serif}
   body[data-print-mode="table"] .print-title{font-size:13pt;line-height:1.1;margin:0 0 1.5mm}
-  body[data-print-mode="table"] .print-meta{font-size:7pt;margin:0 0 2mm}
-  body[data-print-mode="table"] .print-results-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:6.2pt;line-height:1.08;white-space:normal}
-  body[data-print-mode="table"] .print-results-table th,body[data-print-mode="table"] .print-results-table td{border:.25mm solid #888;padding:.7mm .45mm;vertical-align:top;overflow-wrap:anywhere;word-break:normal;color:#000}
+  body[data-print-mode="table"] .print-meta{font-size:7pt;margin:0 0 1mm}
+  body[data-print-mode="table"] .print-legend{font-size:6.6pt;margin:0 0 2mm;padding:1mm 1.4mm;background:#f1f1f1;border-left:1mm solid #888;color:#222}
+  body[data-print-mode="table"] .print-results-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:6.2pt;line-height:1.08;white-space:normal;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body[data-print-mode="table"] .print-results-table th,body[data-print-mode="table"] .print-results-table td{border:.25mm solid #888;padding:.7mm .45mm;vertical-align:top;overflow-wrap:anywhere;word-break:normal;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body[data-print-mode="table"] .print-results-table tbody tr.excluded-column td{background:#dedede!important;color:#666!important}
+  body[data-print-mode="table"] .print-results-table tbody tr.excluded-column td strong{color:#444!important;font-weight:900}
+  body[data-print-mode="table"] .print-results-table tbody tr.considered-column td{background:#fff}
+  body[data-print-mode="table"] .print-results-table tbody tr.considered-column:nth-child(even) td{background:#f8f8f8}
   body[data-print-mode="table"] .print-results-table th{background:#e9eeea!important;font-weight:700;text-align:left}
   body[data-print-mode="table"] .print-results-table td strong{font-weight:900}
   body[data-print-mode="table"] .print-results-table th:first-child,body[data-print-mode="table"] .print-results-table td:first-child{width:5mm;text-align:center}
@@ -193,16 +198,23 @@ input,textarea,select{border-radius:10px;border-color:var(--border)}textarea{min
 @media(max-width:600px){.input-method-card{padding:.7rem;margin-top:.7rem}.input-method-card h3{font-size:.95rem}.file-input{font-size:16px;padding:.4rem}.full-width{min-height:46px}}
 
 
-/* Anagrafica squadre personalizzabile e promemoria stagionale. */
-.team-manager{border:1px solid var(--border);border-radius:10px;padding:.65rem .75rem;background:var(--surface)}
-.team-manager summary{font-weight:800;cursor:pointer;padding:.25rem 0 .5rem}
+/* Anagrafica squadre in una finestra separata, per mantenere compatta l'area d'importazione. */
+.team-manager-launch{margin-top:.7rem;padding:.65rem .75rem;border:1px solid var(--border);border-radius:11px;background:var(--surface-2)}
+.team-manager-launch .help{margin:.45rem 0 0}
+.team-dialog{width:min(620px,calc(100vw - 1rem));max-height:min(90vh,820px);max-height:min(90dvh,820px)}
+.team-dialog::backdrop{background:rgba(4,18,14,.62);backdrop-filter:blur(2px)}
+.team-dialog[open][data-fallback-open="true"]{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1001;margin:0}
+body.team-dialog-fallback::after{content:"";position:fixed;inset:0;background:rgba(4,18,14,.62);z-index:1000}
+.team-dialog-body{padding:.8rem 1.1rem .5rem;overflow-y:auto}
+.team-dialog-body>.help{margin-top:0}
+.team-manager{border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--surface)}
 #teamListInput{min-height:180px;margin-bottom:.45rem}
 .team-manager .button-row{margin-top:.5rem}
 .season-reminder{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.8rem;padding:.85rem 1rem;border:1px solid var(--green);border-radius:12px;background:var(--accent)}
 .season-reminder[hidden]{display:none!important}
 .season-reminder p{margin:.2rem 0 0}
 .season-reminder .button-row{flex-wrap:wrap}
-@media(max-width:600px){.season-reminder{display:block;padding:.75rem}.season-reminder .button-row{display:grid;grid-template-columns:1fr 1fr;margin-top:.5rem}.team-manager .button-row{display:grid;grid-template-columns:1fr}.team-manager .button-row .button{width:100%}}
+@media(max-width:600px){.season-reminder{display:block;padding:.75rem}.season-reminder .button-row{display:grid;grid-template-columns:1fr 1fr;margin-top:.5rem}.team-manager .button-row{display:grid;grid-template-columns:1fr}.team-manager .button-row .button{width:100%}.team-dialog-body{padding:.7rem .75rem .45rem}.team-dialog{width:calc(100vw - .7rem);max-height:90vh;max-height:90dvh}}
 
 
 /* Filtri dinamici per ogni esito selezionato e caricamento elenco ufficiale. */

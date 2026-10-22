@@ -71,3 +71,16 @@ export function applyFilters(colonne, filters) {
   }
   return { colonne: result, colonnePrima: colonne.length, colonneDopo: result.length, conteggi };
 }
+
+
+// Segna quali colonne del sistema integrale sopravvivono ai filtri.
+// La stampa può così mostrare il sistema completo mantenendo distinguibili le righe escluse.
+export function classifyColumns(allColumns, filteredColumns) {
+  const filtered = Array.isArray(filteredColumns) ? filteredColumns : [];
+  const includedObjects = new Set(filtered);
+  const includedIds = new Set(filtered.filter(column => column?.id != null).map(column => String(column.id)));
+  return (Array.isArray(allColumns) ? allColumns : []).map(column => ({
+    column,
+    included: column?.id != null ? includedIds.has(String(column.id)) : includedObjects.has(column)
+  }));
+}

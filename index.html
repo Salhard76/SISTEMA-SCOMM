@@ -8,18 +8,18 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=v3-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=v3-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=v3-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=v3-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=v4-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=v4-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=v4-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=v4-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=v3-20261022">
-  <script type="module" src="app.js?v=v3-20261022"></script>
+  <link rel="stylesheet" href="style.css?v=v4-20261022">
+  <script type="module" src="app.js?v=v4-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=v3-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=v4-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -44,6 +44,30 @@
     </div>
     <p class="info-responsible">Le quote possono cambiare. I calcoli sono indicativi e non garantiscono vincite: imposta un budget sostenibile e gioca responsabilmente.</p>
     <div class="info-dialog-footer"><span>Guida rapida integrata</span><button id="closeInfo" class="button primary" type="button">Ho capito</button></div>
+  </dialog>
+
+  <dialog id="teamDialog" class="info-dialog team-dialog" aria-labelledby="teamDialogTitle" aria-describedby="teamDialogIntro">
+    <div class="info-dialog-header">
+      <div><p class="info-kicker">SISTEMA SCOMMESSE BUILDER</p><h2 id="teamDialogTitle">Elenco squadre Serie A</h2></div>
+      <button id="closeTeamDialogTop" class="button secondary icon-close" type="button" aria-label="Chiudi elenco squadre" title="Chiudi">✕</button>
+    </div>
+    <p id="teamDialogIntro" class="info-intro">Questa anagrafica serve al riconoscimento dei nomi nel PDF; modificarla non cambia le partite già caricate.</p>
+    <div class="team-dialog-body">
+      <p class="help">Il parser usa l'elenco per riconoscere i nomi composti quando il PDF stampa le due squadre senza separatore. Puoi caricare il riferimento incluso e controllarlo prima di salvarlo.</p>
+      <div class="official-team-source">
+        <p class="help">Fonte ufficiale: <a href="https://www.legaseriea.it/serie-a" target="_blank" rel="noopener noreferrer">Lega Serie A – Club ↗</a></p>
+        <button id="refreshOfficialTeams" class="button primary full-width" type="button">Carica elenco ufficiale di riferimento</button>
+        <p id="officialTeamStatus" class="help" aria-live="polite">Nessun aggiornamento caricato. L'elenco di riferimento viene distribuito con questa versione dell'app.</p>
+      </div>
+      <div id="teamManager" class="team-manager">
+        <label for="teamListInput">Elenco modificabile — una squadra per riga</label>
+        <textarea id="teamListInput" rows="7" spellcheck="false" autocapitalize="words" placeholder="Atalanta&#10;Bologna&#10;Virtus Entella"></textarea>
+        <p class="help">Scrivi il nome completo come appare sul bollettino: ad esempio <code>Virtus Entella</code> o <code>Juve Stabia</code> restano una singola squadra. Per un'abbreviazione, usa <code>Nome completo | alias</code>. Non inserire qui squadre di Serie B se vuoi importare soltanto la Serie A.</p>
+        <div class="button-row"><button id="saveTeamList" class="button primary" type="button">Salva elenco</button><button id="resetTeamList" class="button secondary" type="button">Ripristina base ufficiale 2026/27</button></div>
+        <p id="teamListStatus" class="help" aria-live="polite">Le modifiche vengono salvate su questo dispositivo.</p>
+      </div>
+    </div>
+    <div class="info-dialog-footer"><span>Le modifiche valgono per le prossime importazioni PDF.</span><button id="closeTeamDialog" class="button primary" type="button">Chiudi</button></div>
   </dialog>
 
   <p id="installStatus" class="sr-only" aria-live="polite">L’app può essere installata quando il browser lo consente.</p>
@@ -79,26 +103,13 @@
         <p class="help">Dal PDF vengono caricate solo le partite di Serie A riconosciute.</p>
         <details id="pdfDiagnostics" class="pdf-diagnostics" hidden><summary id="pdfDiagnosticsSummary">Diagnostica importazione PDF</summary><p id="pdfDiagnosticsText" class="help" aria-live="polite"></p></details>
       </section>
-      <section class="input-method-card team-method" aria-labelledby="team-manager-title">
-        <h3 id="team-manager-title">Elenco squadre Serie A</h3>
-        <p class="help">Il parser usa l'elenco per riconoscere i nomi composti quando il PDF stampa le due squadre senza separatore. L'elenco di riferimento è verificato sulla pagina ufficiale della Lega Serie A; puoi caricarlo con un tocco e controllarlo prima di salvarlo.</p>
-        <div class="official-team-source">
-          <p class="help">Fonte ufficiale: <a href="https://www.legaseriea.it/serie-a" target="_blank" rel="noopener noreferrer">Lega Serie A – Club ↗</a></p>
-          <button id="refreshOfficialTeams" class="button primary full-width" type="button">Carica elenco ufficiale di riferimento</button>
-          <p id="officialTeamStatus" class="help" aria-live="polite">Nessun aggiornamento caricato. L'elenco ufficiale viene distribuito con questa versione dell'app.</p>
-        </div>
-        <details id="teamManager" class="team-manager">
-          <summary>Modifica elenco o alias (manuale)</summary>
-          <label for="teamListInput">Una squadra per riga</label>
-          <textarea id="teamListInput" rows="7" spellcheck="false" autocapitalize="words" placeholder="Atalanta&#10;Bologna&#10;Virtus Entella"></textarea>
-          <p class="help">Scrivi il nome completo come appare sul bollettino: ad esempio <code>Virtus Entella</code> o <code>Juve Stabia</code> restano una singola squadra. Per un'abbreviazione, usa <code>Nome completo | alias</code>. Non inserire qui squadre di Serie B se vuoi importare soltanto la Serie A.</p>
-          <div class="button-row"><button id="saveTeamList" class="button primary" type="button">Salva elenco</button><button id="resetTeamList" class="button secondary" type="button">Ripristina base ufficiale 2026/27</button></div>
-          <p id="teamListStatus" class="help" aria-live="polite">Le modifiche vengono salvate su questo dispositivo.</p>
-        </details>
-      </section>
+      <div class="team-manager-launch">
+        <button id="openTeamManager" class="button secondary full-width" type="button" aria-haspopup="dialog" aria-controls="teamDialog">⚙ Gestisci elenco squadre Serie A</button>
+        <p class="help">L’anagrafica squadre e gli alias si modificano nella finestra dedicata.</p>
+      </div>
       <div id="seasonTeamReminder" class="season-reminder" hidden>
         <div><strong>Controllo annuale squadre</strong><p class="help">È il periodo del controllo stagionale: verifica promosse, retrocesse e nomi ufficiali. Il promemoria resta finché non confermi.</p></div>
-        <div class="button-row"><button id="openTeamManager" class="button primary" type="button">Aggiorna elenco</button><button id="confirmTeamList" class="button secondary" type="button">Elenco verificato</button></div>
+        <div class="button-row"><button id="openTeamManagerReminder" class="button primary" type="button">Aggiorna elenco</button><button id="confirmTeamList" class="button secondary" type="button">Elenco verificato</button></div>
       </div>
       <details id="backupPanel" class="input-method-card backup-panel">
         <summary>Backup e ripristino delle impostazioni</summary>
