@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
-import { applyFilters, describeOutcome, maxOutcomeCount } from '../js/filters.js';
+import { applyFilters, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
 import { printWithMode } from '../js/exporter.js';
 import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
 
@@ -30,13 +30,22 @@ test('UI: nessun identificatore duplicato in index.html', () => {
   const ids = [...pageHtml.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
   assert.equal(ids.length, new Set(ids).size, 'Tutti gli id HTML devono essere univoci');
 });
+test('UI: rimosse le tre soglie statiche e presente la tabella dedicata alla stampa', () => {
+  assert.doesNotMatch(pageHtml, /id="(?:highOdds|maxHigh|minProb)"/);
+  assert.match(pageHtml, /id="printTableWrap"/);
+  assert.doesNotMatch(pageJs, /\$\('(highOdds|maxHigh|minProb)'\)/);
+});
+test('Stampa: A4 integrale e colonne in A4 orizzontale con layout compatto', () => {
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /@page\s*\{size:A4 portrait/);
+  assert.match(css, /@page columns\{size:A4 landscape/);
+  assert.match(css, /body\[data-print-mode="table"\] \.print-results-table/);
+  assert.match(pageJs, /Quota totale.*Prob\. implicita.*Bonus stimato.*Ritorno lordo.*Profitto teorico/);
+});
 
 const backupExample = createBackupPayload({
   manualInput: 'Milan - Roma; 2.10; 3.20; 3.60',
   stake: '0.10',
-  highOdds: '3.00',
-  maxHigh: '',
-  minProb: '',
   sisalBonus: true,
   theme: 'dark',
   matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
@@ -158,6 +167,17 @@ test('Filtri: max 3 Over e max 3 Under lasciano 14 colonne', () => {
     { nome: 'Under max 3', test: maxOutcomeCount(underKey, 3) }
   ]);
   assert.equal(filtered.colonneDopo, 14);
+});
+test('Filtri: gli esiti fissi non sono selezionabili nel catalogo di riduzione', () => {
+  const fixed = { id: 'fixed', tipo: 'fissa', selezionati: ['1X2:1'], esiti: [{ market: '1X2', outcome: '1', label: '1', quota: 1.5 }] };
+  const double = { id: 'double', tipo: 'doppia', selezionati: ['Under/Over 2.5:Over 2.5', 'Under/Over 2.5:Under 2.5'], esiti: [
+    { market: 'Under/Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.9 },
+    { market: 'Under/Over 2.5', outcome: 'Under 2.5', label: 'Under 2.5', quota: 1.85 }
+  ] };
+  const catalog = collectVariableOutcomes([fixed, double]);
+  assert.equal(catalog.length, 2);
+  assert.ok(catalog.every(item => !item.label.includes('Esito finale')));
+  assert.deepEqual(catalog.map(item => item.label), ['Over 2.5', 'Under 2.5']);
 });
 
 function pdfItem(str, y) {

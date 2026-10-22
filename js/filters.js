@@ -39,8 +39,25 @@ export function describeOutcome(esito) {
   return { key: `${marketNorm || 'altro'}|${normalizeToken(raw)}`, label: market ? `${market} · ${label}` : label };
 }
 
-export const maxEsitiAlti = (n, soglia = 3) => c => c.esiti.filter(e => Number(e.quota) > Number(soglia)).length <= Number(n);
-export const probabilitaMin = p => c => (1 / c.quotaTotale) * 100 >= Number(p);
+
+// Catalogo dei filtri riduzione solo sugli esiti variabili delle doppie.
+// Gli esiti delle fisse sono presenti in ogni colonna: filtrarli non riduce il sistema
+// in modo utile e un limite incompatibile può azzerare tutte le colonne.
+export function collectVariableOutcomes(matches) {
+  const catalog = new Map();
+  for (const match of Array.isArray(matches) ? matches : []) {
+    const selectedKeys = Array.isArray(match.selezionati) ? match.selezionati : [];
+    if ((match.tipo || (selectedKeys.length > 1 ? 'doppia' : 'fissa')) !== 'doppia' || selectedKeys.length !== 2) continue;
+    const selected = selectedKeys.map(key => (match.esiti || []).find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
+    for (const outcome of selected) {
+      const descriptor = describeOutcome(outcome);
+      if (!catalog.has(descriptor.key)) catalog.set(descriptor.key, { ...descriptor, occurrences: 0 });
+      catalog.get(descriptor.key).occurrences += 1;
+    }
+  }
+  return [...catalog.values()].sort((a, b) => a.label.localeCompare(b.label, 'it'));
+}
+
 export const maxOutcomeCount = (key, n) => c => c.esiti.filter(e => describeOutcome(e).key === key).length <= Number(n);
 export const minOutcomeCount = (key, n) => c => c.esiti.filter(e => describeOutcome(e).key === key).length >= Number(n);
 

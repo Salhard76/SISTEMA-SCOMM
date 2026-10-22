@@ -1,10 +1,10 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=backup-pwa-validation-20261022';
-import { generateSystem } from './js/generator.js?v=backup-pwa-validation-20261022';
-import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=backup-pwa-validation-20261022';
-import { formatEuro, formatQuota } from './js/calculator.js?v=backup-pwa-validation-20261022';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=backup-pwa-validation-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=backup-pwa-validation-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=backup-pwa-validation-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=print-layout-20261022';
+import { generateSystem } from './js/generator.js?v=print-layout-20261022';
+import { applyFilters, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=print-layout-20261022';
+import { formatEuro, formatQuota } from './js/calculator.js?v=print-layout-20261022';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=print-layout-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=print-layout-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=print-layout-20261022';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null };
@@ -138,9 +138,6 @@ function saveState() {
       matches: state.matches,
       outcomeFilterLimits: state.outcomeFilterLimits,
       theme: document.documentElement.dataset.theme || 'light',
-      highOdds: $('highOdds').value,
-      maxHigh: $('maxHigh').value,
-      minProb: $('minProb').value,
       sisalBonus: $('sisalBonus').checked,
       source: state.source,
       pdfDiagnostics: state.pdfDiagnostics
@@ -153,9 +150,6 @@ function restoreState() {
     if (!data) return;
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
-    $('highOdds').value = data.highOdds || '3.00';
-    $('maxHigh').value = data.maxHigh ?? '';
-    $('minProb').value = data.minProb ?? '';
     $('sisalBonus').checked = data.sisalBonus !== false;
     if (Array.isArray(data.matches)) state.matches = data.matches.slice(0, MAX_MATCHES).map(m => ({ ...m, selezionati: (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH) }));
     if (data.outcomeFilterLimits && typeof data.outcomeFilterLimits === 'object') state.outcomeFilterLimits = data.outcomeFilterLimits;
@@ -171,9 +165,6 @@ function getBackupData() {
     matches: state.matches,
     outcomeFilterLimits: state.outcomeFilterLimits,
     theme: document.documentElement.dataset.theme || 'light',
-    highOdds: $('highOdds').value,
-    maxHigh: $('maxHigh').value,
-    minProb: $('minProb').value,
     sisalBonus: $('sisalBonus').checked,
     teamLines: getSerieATeamLines(),
     reviewedSeason: getReviewedSeason(),
@@ -208,9 +199,6 @@ function applyBackup(data) {
   state.pdfDiagnostics = data.pdfDiagnostics || null;
   $('manualInput').value = data.manualInput;
   $('stake').value = data.stake;
-  $('highOdds').value = data.highOdds;
-  $('maxHigh').value = data.maxHigh;
-  $('minProb').value = data.minProb;
   $('sisalBonus').checked = data.sisalBonus;
   document.documentElement.dataset.theme = data.theme;
   try {
@@ -260,28 +248,19 @@ function outcomeGroups(match) {
 }
 function renderDynamicFilters() {
   const root = $('dynamicFilters');
-  const catalog = new Map();
-  for (const match of state.matches) {
-    const selected = (match.selezionati || []).map(key => match.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
-    for (const outcome of selected) {
-      const descriptor = describeOutcome(outcome);
-      if (!catalog.has(descriptor.key)) catalog.set(descriptor.key, { ...descriptor, occurrences: 0 });
-      catalog.get(descriptor.key).occurrences += 1;
-    }
-  }
-  const items = [...catalog.values()].sort((a, b) => a.label.localeCompare(b.label, 'it'));
+  const items = collectVariableOutcomes(state.matches);
   const signature = items.map(item => `${item.key}:${item.occurrences}`).join('|');
   if (signature === lastDynamicFilterSignature) return;
   lastDynamicFilterSignature = signature;
   if (!items.length) {
-    root.innerHTML = '<p class="help">Seleziona gli esiti delle partite: compariranno qui i limiti disponibili per ciascun esito.</p>';
+    root.innerHTML = '<p class="help">Seleziona due esiti in almeno una partita doppia. I filtri delle fisse non compaiono perché un esito fisso è presente in tutte le colonne e non può ridurre il sistema.</p>'; 
     return;
   }
   root.innerHTML = items.map((item, index) => {
     const saved = state.outcomeFilterLimits[item.key] || {};
     const key = encodeURIComponent(item.key);
     return `<div class="dynamic-filter-row" data-filter-row="${key}">
-      <div class="dynamic-filter-name"><strong>${escapeHtml(item.label)}</strong><small>Disponibile in ${item.occurrences} selezioni</small></div>
+      <div class="dynamic-filter-name"><strong>${escapeHtml(item.label)}</strong><small>Esito variabile in ${item.occurrences} selezioni delle doppie</small></div>
       <div class="dynamic-filter-inputs">
         <label for="dyn-min-${index}">Min <input id="dyn-min-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="min" data-filter-key="${key}" value="${saved.min ?? ''}"></label>
         <label for="dyn-max-${index}">Max <input id="dyn-max-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="max" data-filter-key="${key}" value="${saved.max ?? ''}"></label>
@@ -321,14 +300,7 @@ function readEvents() {
 }
 function collectFilters() {
   const fs = [];
-  const currentCatalog = new Map();
-  for (const match of state.matches) {
-    const selected = (match.selezionati || []).map(selectedKey => match.esiti.find(o => `${o.market}:${o.outcome}` === selectedKey)).filter(Boolean);
-    for (const outcome of selected) {
-      const descriptor = describeOutcome(outcome);
-      if (!currentCatalog.has(descriptor.key)) currentCatalog.set(descriptor.key, descriptor);
-    }
-  }
+  const currentCatalog = new Map(collectVariableOutcomes(state.matches).map(item => [item.key, item]));
   // Limiti salvati per tipi di esito non più selezionati restano memorizzati,
   // ma sono inattivi finché l'esito non torna presente nel sistema.
   for (const [key, limits] of Object.entries(state.outcomeFilterLimits || {})) {
@@ -340,12 +312,6 @@ function collectFilters() {
     if (limits.max !== '' && limits.max != null && Number.isFinite(Number(limits.max))) {
       fs.push({ nome: `${current.label} · Max`, test: maxOutcomeCount(key, Number(limits.max)) });
     }
-  }
-  if ($('maxHigh').value.trim() !== '' && Number.isFinite(Number($('maxHigh').value))) {
-    fs.push({ nome: 'Quote singole sopra soglia · Max', test: maxEsitiAlti(Number($('maxHigh').value), Number($('highOdds').value) || 3) });
-  }
-  if ($('minProb').value.trim() !== '' && Number.isFinite(Number($('minProb').value))) {
-    fs.push({ nome: 'Probabilità implicita minima', test: probabilitaMin(Number($('minProb').value)) });
   }
   return fs;
 }
@@ -446,6 +412,7 @@ function updateCounter() {
       state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
       $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
       $('tableWrap').innerHTML = '<p class="empty-state">Sistema non aggiornato: correggi le selezioni prima di generare di nuovo.</p>';
+      $('printTableWrap').innerHTML = ''; 
       $('summary').textContent = built.error;
     }
     return;
@@ -465,6 +432,7 @@ function renderTable() {
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0;
   if (!cols.length) {
     $('tableWrap').innerHTML = '<p class="empty-state">Nessuna colonna dopo i filtri. Modifica i filtri o le selezioni.</p>';
+    $('printTableWrap').innerHTML = ''; 
     $('summary').textContent = `Prima: ${state.rawColumns.length.toLocaleString('it-IT')} colonne · Dopo: 0 colonne · Puntata totale: ${formatEuro(0)}.`;
     return;
   }
@@ -485,6 +453,14 @@ function renderTable() {
   $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.`;
   const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const activeEvents = readEvents();
+  const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
+  const printRows = cols.map((column, index) => {
+    const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
+    const eventCells = activeEvents.map(event => `<td>${escapeHtml(selectedByEvent.get(event.id)?.label || '—')}</td>`).join('');
+    return `<tr><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${(100/column.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[index] ? (bonuses[index]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[index])}</td><td class="num">${formatEuro(returns[index]-stake)}</td></tr>`;
+  }).join('');
+  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">${cols.length} colonne · Puntata per colonna ${formatEuro(stake)} · Costo totale ${formatEuro(totalStake)}</p><table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo</th><th>Profitto teorico</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Ritorni e bonus sono stime, non garantiti. Quote soggette a variazione.</p>`;
 }
 let pdfJsBase = '';
 let pdfJsLoadPromise = null;
@@ -698,7 +674,6 @@ $('matches').addEventListener('click', event => {
   state.matches = state.matches.filter(m => m.id !== button.dataset.id);
   renderMatches(); saveState(); updateCounter();
 });
-for (const id of ['highOdds','maxHigh','minProb']) $(id).addEventListener('input', debouncedUpdateCounter);
 $('dynamicFilters').addEventListener('input', event => {
   const input = event.target.closest('input[data-dynamic-limit]');
   if (!input) return;
@@ -863,12 +838,12 @@ $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
   state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null;
   $('manualInput').value = ''; $('stake').value = '0.10';
-  for (const id of ['maxHigh','minProb']) $(id).value = '';
   state.outcomeFilterLimits = {};
   renderDynamicFilters();
-  $('highOdds').value = '3.00'; localStorage.removeItem(savedKey);
+  localStorage.removeItem(savedKey);
   renderMatches(); $('summary').textContent = 'Seleziona almeno una partita e i relativi esiti.';
   $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
+  $('printTableWrap').innerHTML = '';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   status('Sistema azzerato.');
 });

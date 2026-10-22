@@ -8,18 +8,18 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=info-help-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=info-help-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=info-help-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=info-help-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=print-layout-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=print-layout-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=print-layout-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=print-layout-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=info-help-20261022">
-  <script type="module" src="app.js?v=info-help-20261022"></script>
+  <link rel="stylesheet" href="style.css?v=print-layout-20261022">
+  <script type="module" src="app.js?v=print-layout-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=info-help-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=print-layout-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -118,11 +118,6 @@
         <summary>Filtri dinamici sugli esiti selezionati</summary>
         <div id="dynamicFilters" class="dynamic-filters" aria-live="polite" aria-atomic="true"><p class="help">Seleziona gli esiti delle partite per costruire i filtri.</p></div>
       </details>
-      <div class="filter-grid static-filter-grid">
-        <div class="field"><label for="highOdds">Soglia quote singole alte</label><input id="highOdds" type="number" min="1.01" step="0.01" value="3.00"></div>
-        <div class="field"><label for="maxHigh">Numero massimo di quote sopra soglia</label><input id="maxHigh" type="number" min="0" step="1" placeholder="Nessun limite"></div>
-        <div class="field"><label for="minProb">Probabilità implicita minima (%)</label><input id="minProb" type="number" min="0" max="100" step="0.1" placeholder="Nessun limite"></div>
-      </div>
       <div class="counter" aria-live="polite"><span>Colonne prima</span><strong id="beforeCount">0</strong><span class="arrow">→</span><span>Colonne dopo</span><strong id="afterCount">0</strong></div>
     </section>
 
@@ -141,7 +136,7 @@
       <div id="preflightReport" class="preflight-report" aria-live="polite" hidden></div>
       <div id="summary" class="summary" aria-live="polite">Seleziona almeno una partita e i relativi esiti.</div>
       <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printIntegral" class="button secondary" type="button" disabled>Stampa sistema integrale</button><button id="printTable" class="button secondary" type="button" disabled>Stampa colonne</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>
-      <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div>
+      <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div><div id="printTableWrap" class="print-table-wrap"></div>
     </section>
   </main>
 

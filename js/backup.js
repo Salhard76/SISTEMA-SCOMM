@@ -96,15 +96,11 @@ export function validateBackupPayload(payload) {
     }
   }
   const theme = data.theme === 'dark' ? 'dark' : 'light';
-  const highOdds = validNumberString(data.highOdds, '3.00', 1.01, 1000, 'soglia quote alte');
   const stake = validNumberString(data.stake, '0.10', 0, 100000, 'puntata');
-  const maxHigh = optionalIntegerString(data.maxHigh, 0, MAX_MATCHES, 'massimo quote alte');
-  const minProb = optionalNumberString(data.minProb, 0, 100, 'probabilità implicita minima');
 
   return {
     manualInput: asText(data.manualInput),
     stake, matches, outcomeFilterLimits: limits, theme,
-    highOdds, maxHigh, minProb,
     sisalBonus: data.sisalBonus !== false,
     teamLines,
     reviewedSeason: asText(data.reviewedSeason, '').slice(0, 20),
