@@ -1,20 +1,19 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
-import { printWithMode } from '../js/exporter.js';
+import { printWithMode, buildCsv } from '../js/exporter.js';
+import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
+import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from '../js/selection.js';
+import { buildQuoteSheetGroups, flattenQuoteSheetColumns, matchesQuoteColumn } from '../js/quote-sheet.js';
 
-function test(name, fn) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-  } catch (error) {
-    console.error(`✗ ${name}`);
-    throw error;
-  }
-}
+// I test async venivano lanciati senza await: un fallimento compariva dopo il "✓" (o mai).
+// Ora si accodano e si eseguono in sequenza, attendendo ciascuno.
+const queue = [];
+function test(name, fn) { queue.push({ name, fn }); }
 
 
 const pageHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -35,12 +34,87 @@ test('UI: rimosse le tre soglie statiche e presente la tabella dedicata alla sta
   assert.match(pageHtml, /id="printTableWrap"/);
   assert.doesNotMatch(pageJs, /\$\('(highOdds|maxHigh|minProb)'\)/);
 });
-test('Stampa: A4 integrale e colonne in A4 orizzontale con layout compatto', () => {
+test('Stampa: A4 integrale; colonne con sole quota totale e vincita netta', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /@page\s*\{size:A4 portrait/);
   assert.match(css, /@page columns\{size:A4 landscape/);
   assert.match(css, /body\[data-print-mode="table"\] \.print-results-table/);
-  assert.match(pageJs, /Quota totale.*Prob\. implicita.*Bonus stimato.*Ritorno lordo.*Profitto teorico/);
+  assert.match(pageJs, /<th>Quota totale<\/th><th>Vincita netta<\/th>/);
+  assert.match(pageJs, /event\.tipo === 'fissa' \? `<strong>/);
+  assert.match(pageJs, /const usesHandicap = selected\.some\(outcome => selectionMarketKey\(outcome\) === 'handicap'\)/);
+  assert.match(pageJs, /handicapSuffix = usesHandicap/);
+  assert.match(pageJs, /`Handicap \${m\.handicap}`/);
+  assert.match(pageJs, /const meta = \[m\.competizione, m\.data, m\.ora/);
+  assert.match(pageJs, /<table class=\"print-results-table\"><thead><tr><th>N°<\/th>\$\{printHeaders\}<th>Quota totale<\/th><th>Vincita netta<\/th>/);
+});
+test('UI: griglia quote al posto dei controlli Fissa/Doppia', () => {
+  assert.match(pageJs, /class=\"quote-sheet\"/);
+  assert.match(pageJs, /data-outcome-key/);
+  assert.doesNotMatch(pageJs, /name=\"tipo-\$\{mi\}\"/);
+  assert.doesNotMatch(pageJs, /class=\"match-controls\"/);
+  assert.match(pageHtml, /quote-sheet-intro/);
+  assert.match(pageHtml, /handicap numerico H è informativo/);
+});
+test('Selezione quote: un esito è fissa, due dello stesso mercato sono doppia', () => {
+  const match = { id: 'm', casa: 'Torino', trasferta: 'Monza', esiti: [
+    { market: '1X2', outcome: '1', label: '1', quota: 2.1 },
+    { market: '1X2', outcome: 'X', label: 'X', quota: 3.2 },
+    { market: 'Under/Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.9 }
+  ], selezionati: [] };
+  assert.equal(toggleMatchOutcome(match, '1X2:1').kind, 'fissa');
+  assert.deepEqual(match.selezionati, ['1X2:1']);
+  assert.equal(toggleMatchOutcome(match, '1X2:X').kind, 'doppia');
+  assert.deepEqual(match.selezionati, ['1X2:1', '1X2:X']);
+  const switchMarket = toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
+  assert.equal(switchMarket.kind, 'fissa');
+  assert.deepEqual(match.selezionati, ['Under/Over 2.5:Over 2.5']);
+  toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
+  assert.deepEqual(match.selezionati, []);
+});
+test('Selezione quote: riconosce le opzioni dello stesso mercato anche nel parser manuale', () => {
+  const [totals] = parseManualInput('Milan - Roma O2.5=1.90 U2.5=1.85');
+  const over = totals.esiti.find(outcome => outcome.label === 'Over 2.5');
+  const under = totals.esiti.find(outcome => outcome.label === 'Under 2.5');
+  assert.notEqual(over.market, under.market, 'Il parser manuale può conservare etichette mercato diverse');
+  assert.equal(selectionMarketKey(over), selectionMarketKey(under));
+  assert.equal(toggleMatchOutcome(totals, `${over.market}:${over.outcome}`).kind, 'fissa');
+  assert.equal(toggleMatchOutcome(totals, `${under.market}:${under.outcome}`).kind, 'doppia');
+  assert.equal(totals.selezionati.length, 2);
+
+  const [goalMatch] = parseManualInput('Milan - Roma Goal=1.70 NoGoal=2.00');
+  const goal = goalMatch.esiti.find(outcome => outcome.label === 'Goal');
+  const noGoal = goalMatch.esiti.find(outcome => outcome.label === 'NoGoal');
+  assert.equal(selectionMarketKey(goal), selectionMarketKey(noGoal));
+  assert.equal(selectionMarketKey({ market: '1X2 Handicap' }), selectionMarketKey({ market: 'Handicap' }));
+  assert.equal(toggleMatchOutcome(goalMatch, `${goal.market}:${goal.outcome}`).kind, 'fissa');
+  assert.equal(toggleMatchOutcome(goalMatch, `${noGoal.market}:${noGoal.outcome}`).kind, 'doppia');
+});
+
+test('Migrazione stato: avvisa quante vecchie doppie tra mercati vengono normalizzate', () => {
+  const result = normalizeMatchList([{ id: 'legacy', esiti: [
+    { market: '1X2', outcome: '1' }, { market: 'Under/Over 2.5', outcome: 'Over 2.5' }
+  ], selezionati: ['1X2:1', 'Under/Over 2.5:Over 2.5'] }]);
+  assert.equal(result.adjustedCount, 1);
+  assert.deepEqual(result.matches[0].selezionati, ['1X2:1']);
+  assert.equal(result.matches[0].tipo, 'fissa');
+});
+test('Selezione quote: non consente tre esiti e normalizza vecchie doppie tra mercati', () => {
+  const match = { esiti: [
+    { market: '1X2', outcome: '1' }, { market: '1X2', outcome: 'X' }, { market: '1X2', outcome: '2' },
+    { market: 'Under/Over 2.5', outcome: 'Over 2.5' }
+  ], selezionati: ['1X2:1', 'Under/Over 2.5:Over 2.5'] };
+  normalizeMatchSelection(match);
+  assert.deepEqual(match.selezionati, ['1X2:1']);
+  assert.equal(match.tipo, 'fissa');
+  match.selezionati = ['1X2:1', '1X2:X'];
+  normalizeMatchSelection(match);
+  const refused = toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
+  assert.equal(refused.changed, true); // mercato diverso passa intenzionalmente a una fissa
+  assert.deepEqual(match.selezionati, ['Under/Over 2.5:Over 2.5']);
+  match.selezionati = ['1X2:1', '1X2:X']; normalizeMatchSelection(match);
+  const noThird = toggleMatchOutcome(match, '1X2:2');
+  assert.equal(noThird.changed, false);
+  assert.match(noThird.message, /due quote/);
 });
 
 const backupExample = createBackupPayload({
@@ -48,7 +122,7 @@ const backupExample = createBackupPayload({
   stake: '0.10',
   sisalBonus: true,
   theme: 'dark',
-  matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
+  matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', palinsesto: '36431', avvenimento: '1003', handicap: '1', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
   outcomeFilterLimits: { 'Esito finale|1': { min: '', max: '2' } },
   teamLines: ['Squadra Uno', 'Squadra Due'],
   reviewedSeason: '2026/27',
@@ -60,15 +134,18 @@ test('Backup JSON: esporta e valida impostazioni, partite e lista squadre', () =
   assert.equal(backupExample.format, BACKUP_FORMAT);
   assert.equal(restored.matches.length, 1);
   assert.equal(restored.matches[0].casa, 'Milan');
+  assert.equal(restored.matches[0].palinsesto, '36431');
+  assert.equal(restored.matches[0].avvenimento, '1003');
+  assert.equal(restored.matches[0].handicap, '1');
   assert.deepEqual(restored.matches[0].selezionati, ['1X2:1']);
   assert.deepEqual(restored.teamLines, ['Squadra Uno', 'Squadra Due']);
   assert.equal(restored.theme, 'dark');
   assert.equal(restored.sisalBonus, true);
 });
-test('Backup JSON: rifiuta più di 10 partite', () => {
+test('Backup JSON: rifiuta più di 30 partite caricate', () => {
   const invalid = structuredClone(backupExample);
-  invalid.data.matches = Array.from({ length: 11 }, () => ({}));
-  assert.throws(() => validateBackupPayload(invalid), /limite è 10/);
+  invalid.data.matches = Array.from({ length: 31 }, () => ({}));
+  assert.throws(() => validateBackupPayload(invalid), /limite è 30/);
 });
 test('Backup JSON: rifiuta quote mancanti o non valide', () => {
   const invalid = structuredClone(backupExample);
@@ -115,6 +192,12 @@ test('Parser manuale: NoGoal non viene interpretato come Goal', () => {
   const [match] = parseManualInput('Milan - Roma NoGoal=2.00');
   assert.ok(match);
   assert.equal(match.esiti[0].label, 'NoGoal');
+});
+test('Griglia quote: mercati manuali O/U 2.5 restano nelle colonne standard', () => {
+  const [match] = parseManualInput('Milan - Roma O2.5=1.90 U2.5=1.85');
+  const columns = flattenQuoteSheetColumns(buildQuoteSheetGroups([match]));
+  assert.equal(columns.length, 22, 'I mercati standard O/U 2.5 non devono creare colonne duplicate; la colonna H è informativa');
+  for (const outcome of match.esiti) assert.equal(columns.filter(column => matchesQuoteColumn(outcome, column)).length, 1);
 });
 
 function event(id, outcomes, tipo = 'doppia') {
@@ -210,6 +293,16 @@ test('Parser PDF: Serie D e Serie B chiudono la sezione Serie A; mostra diagnost
   assert.equal(matches.length, 1);
   assert.equal(matches[0].competizione, 'Serie A');
   assert.equal(matches[0].casa, 'Milan');
+  assert.equal(matches[0].palinsesto, '36431');
+  assert.equal(matches[0].avvenimento, '1003');
+  assert.equal(matches[0].handicap, '1');
+  assert.equal(matches[0].esiti.length, 21);
+  const sheetColumns = flattenQuoteSheetColumns(buildQuoteSheetGroups(matches));
+  assert.equal(sheetColumns.length, 22, 'La griglia del PDF deve contenere 21 quote selezionabili più il valore Handicap non cliccabile');
+  assert.ok(sheetColumns.some(column => column.staticField === 'handicap' && column.label === 'H'));
+  for (const outcome of matches[0].esiti) {
+    assert.equal(sheetColumns.filter(column => matchesQuoteColumn(outcome, column)).length, 1, `Mappatura univoca per ${outcome.market} / ${outcome.outcome}`);
+  }
   assert.equal(matches.diagnostics.seriesAFound, true);
   assert.equal(matches.diagnostics.candidateRows, 3);
   assert.equal(matches.diagnostics.recognizedRows, 2);
@@ -218,6 +311,21 @@ test('Parser PDF: Serie D e Serie B chiudono la sezione Serie A; mostra diagnost
   assert.equal(matches.diagnostics.rejects[0].foundOdds, 20);
   assert.equal(matches.diagnostics.duplicateRows, 1);
   assert.equal(matches.diagnostics.importedRows, 1);
+});
+test('Parser PDF: conserva anche l’handicap negativo del foglio quote', async () => {
+  const negativeRow = validSerieARow.replace(`${odds[2]} 1 ${odds[3]}`, `${odds[2]} -1 ${odds[3]}`);
+  const items = [pdfItem('ITA Serie A', 900), pdfItem(negativeRow, 880)];
+  globalThis.pdfjsLib = {
+    GlobalWorkerOptions: {},
+    getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: async () => ({ getTextContent: async () => ({ items }) })
+    }) })
+  };
+  const matches = await parseSisalPdf(new ArrayBuffer(0));
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].handicap, '-1');
+  assert.equal(matches[0].esiti.length, 21);
 });
 test('Parser PDF: ricompone la quota 10,50 se il PDF la posiziona 1,08 pt più in basso', async () => {
   const y = 900;
@@ -303,4 +411,82 @@ test('Stampa: il modo viene ripulito dopo afterprint o tramite fallback', () => 
   }
 });
 
+// ---------- Test aggiunti nella revisione v3 ----------
+test('Probabilità senza aggio: 1X2 e Under/Over sommano a 1; un mercato incompleto non viene corretto', () => {
+  const match = { esiti: [
+    { market: '1X2', outcome: '1', label: '1', quota: 2.0 }, { market: '1X2', outcome: 'X', label: 'X', quota: 3.5 }, { market: '1X2', outcome: '2', label: '2', quota: 3.8 },
+    { market: 'Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.9 }, { market: 'Under 2.5', outcome: 'Under 2.5', label: 'Under 2.5', quota: 1.9 },
+    { market: 'Goal', outcome: 'Goal', label: 'Goal', quota: 1.75 }
+  ] };
+  const fair = fairProbabilities(match);
+  const sum1x2 = ['1', 'X', '2'].reduce((t, o) => t + fair.get(`1X2:${o}`), 0);
+  assert.ok(Math.abs(sum1x2 - 1) < 1e-9);
+  assert.ok(fair.get('1X2:1') < 1 / 2.0, 'senza aggio la probabilità scende sotto 1/quota');
+  assert.ok(Math.abs(fair.get('Over 2.5:Over 2.5') - 0.5) < 1e-9);
+  assert.equal(fair.has('Goal:Goal'), false, 'Goal senza NoGoal: mercato incompleto');
+});
+test('Probabilità senza aggio: la Doppia Chance somma a 2 ed esclude la mutua esclusività', () => {
+  const dc = { esiti: [
+    { market: 'Doppia Chance', outcome: '1X', label: '1X', quota: 1.30 }, { market: 'Doppia Chance', outcome: 'X2', label: 'X2', quota: 1.60 }, { market: 'Doppia Chance', outcome: '12', label: '12', quota: 1.35 }
+  ] };
+  const fair = fairProbabilities(dc);
+  const total = [...fair.values()].reduce((t, v) => t + v, 0);
+  assert.ok(Math.abs(total - 2) < 1e-9);
+  assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [dc.esiti[0], dc.esiti[1]] }]), false);
+  assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [{ market: '1X2', outcome: '1' }, { market: '1X2', outcome: 'X' }] }, { tipo: 'fissa', esiti: [dc.esiti[0]] }]), true);
+});
+test('Generatore: la probabilità di colonna è il prodotto delle probabilità delle gambe', () => {
+  const ev = [
+    { id: 'a', nome: 'A', tipo: 'doppia', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2, prob: 0.4 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3, prob: 0.3 }] },
+    { id: 'b', nome: 'B', tipo: 'fissa', esiti: [{ label: '2', outcome: '2', market: '1X2', quota: 4, prob: 0.2 }] }
+  ];
+  const { colonne } = generateSystem(ev);
+  assert.equal(colonne.length, 2);
+  assert.ok(Math.abs(colonne[0].prob - 0.08) < 1e-12);
+  assert.ok(Math.abs(colonne[1].prob - 0.06) < 1e-12);
+});
+test('CSV: numeri con virgola decimale e senza virgolette (leggibili da Excel in italiano)', () => {
+  const csv = buildCsv([{ id: 3, quotaTotale: 12.345, prob: 0.0712, bonusPercentuale: 4, ritornoStimato: 1.2345, profittoStimato: 1.1345,
+    esiti: [{ partita: 'Milan - Roma', label: '1', quota: 2.1 }] }]);
+  const data = csv.split('\r\n')[4].split(';');
+  assert.equal(data[0], '3');
+  assert.equal(data[1], '"Milan - Roma: 1 (quota 2,1)"');
+  assert.equal(data[11], '12,35');
+  assert.equal(data[13], '7,12');
+  assert.ok(data.slice(11).every(cell => !cell.includes('"') && !cell.includes('.')), 'nessun numero tra virgolette o con il punto');
+});
+test('Foglio quote: il ridisegno conserva scroll e focus; puntata con debounce; stampa costruita alla stampa', () => {
+  assert.match(pageJs, /scroller\.scrollLeft = keepScroll\.left/);
+  assert.match(pageJs, /again\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(pageJs, /stakeRenderTimeout = setTimeout\(\(\) => \{ if \(state\.lastGenerated\) renderTable\(\); \}, 300\)/);
+  assert.match(pageJs, /\$\('printTable'\)\.addEventListener\('click', \(\) => \{ buildPrintTable\(\); stampaTabella\(\); \}\)/);
+});
+test('Limiti: si possono caricare più partite di quelle selezionabili, ma non più di 10 selezionate', () => {
+  assert.ok(MAX_LOADED_MATCHES >= MAX_MATCHES);
+  assert.match(pageJs, /activeCount >= MAX_MATCHES/);
+  assert.match(pageJs, /matches\.slice\(0, MAX_LOADED_MATCHES\)/);
+});
+test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun taglio nel parser)', async () => {
+  const teams = ['Atalanta','Bologna','Cagliari','Como','Fiorentina','Frosinone','Genoa','Inter','Juventus','Lazio','Lecce','Milan','Monza','Napoli','Parma','Roma','Sassuolo','Torino','Udinese','Venezia'];
+  const rows = ['ITA Serie A'];
+  for (let i = 0; i < 12; i++) rows.push(`${23 + (i >= 10 ? 1 : 0)}/10 20.45 ${36000 + i} ${1000 + i} ${teams[(2 * i) % 20]} ${teams[(2 * i + 1) % 20]} ${odds.slice(0, 3).join(' ')} 1 ${odds.slice(3).join(' ')}`);
+  const items = rows.map((line, i) => pdfItem(line, 900 - i * 20));
+  globalThis.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 1, getPage: async () => ({ getTextContent: async () => ({ items }) }) }) }) };
+  const matches = await parseSisalPdf(new ArrayBuffer(0));
+  assert.equal(matches.length, 12);
+});
+test('Release: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+  const versions = new Set();
+  const files = ['../index.html', '../app.js', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
+  for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
+  assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
+  assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
+  assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
+  assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);
+});
+
+for (const { name, fn } of queue) {
+  try { await fn(); console.log(`✓ ${name}`); }
+  catch (error) { console.error(`✗ ${name}`); throw error; }
+}
 console.log('\nTutti i test di regressione sono passati.');

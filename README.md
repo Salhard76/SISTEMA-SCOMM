@@ -1,15 +1,24 @@
 # Sistema Scommesse Builder
 
+## Novità versione 3
+- **Foglio quote**: dopo ogni tocco lo scorrimento orizzontale e il focus restano dove sono (prima tornavano a sinistra); colonne squadra più strette su smartphone, così si vedono più quote.
+- **Partite caricate vs selezionate**: si possono caricare fino a 30 partite (`MAX_LOADED_MATCHES` in `js/config.js`), ma selezionarne al massimo 10. Prima un PDF con più di 10 partite di Serie A ne perdeva in silenzio alcune. Per tornare al vecchio comportamento imposta `MAX_LOADED_MATCHES = MAX_MATCHES`.
+- **PDF.js incluso** in `vendor/pdfjs/` (v3.11.174, Apache-2.0): import PDF senza CDN e senza supply-chain esterna; i CDN restano come ripiego.
+- **Velocità con 1.024 colonne**: la puntata ricalcola a fine digitazione (circa 4 volte più veloce) e la tabella di stampa si costruisce solo quando premi “Stampa colonne” (DOM quasi dimezzato).
+- **CSV per Excel italiano**: numeri con virgola e senza virgolette, colonna probabilità stimata.
+- **Probabilità senza aggio** e stima di “almeno una colonna vincente”.
+- **Test**: il lanciatore ora attende davvero i test asincroni (prima un fallimento poteva comparire dopo il ✓) e sono stati aggiunti 8 test; versione `?v=` unica in tutti i file (prima due stringhe diverse facevano caricare i moduli due volte).
+
 Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazione richiesta.
 
-1. Carica i file nella root di un repository GitHub.
+1. Carica tutti i file, **compresa la cartella `vendor/pdfjs`**, nella root di un repository GitHub.
 2. Apri **Settings → Pages**.
 3. Seleziona **Deploy from a branch**, branch `main`, cartella `/ (root)`.
 4. Salva e attendi la pubblicazione.
 5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**: l'icona usa la stessa mascotte La(a)rfleeze già impiegata in Cammafà.
 6. Su Android, apri il collegamento **Apri / scarica PDF ufficiale Sisal**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
 7. In alternativa, incolla i dati nella sezione manuale, che resta sempre visibile; l'importazione diretta da URL è solo un tentativo facoltativo perché CORS può impedirla.
-8. Seleziona gli esiti, imposta i filtri e premi **Genera sistema**.
+8. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra dello stesso mercato formano una doppia; il valore numerico H dell’handicap è informativo e non cliccabile. Imposta i filtri e premi **Genera sistema**.
 9. Esporta CSV/testo oppure stampa la tabella.
 
 ## Formato manuale
@@ -22,25 +31,25 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 
 ## Limiti noti
 - Il tentativo di importazione diretta del PDF può essere bloccato da CORS. La modalità consigliata su Android è scaricare prima il PDF Sisal e selezionarlo dal dispositivo. Il parser PDF è specializzato sul layout del bollettino Sisal: importa esclusivamente Serie A, usa un elenco modificabile dal pannello “Aggiorna elenco squadre” (una squadra per riga, supporta nomi composti e alias) e richiede tutte le 21 quote decimali nell'ordine della tabella. L’elenco base è quello della Serie A 2026/27; da agosto appare un promemoria stagionale che resta visibile finché l’elenco non viene salvato o confermato. Le righe non riconosciute vengono scartate per evitare associazioni errate. Una diagnostica espandibile mostra righe esaminate, rifiuti, conteggio delle quote e duplicati.
-- Le probabilità sono probabilità implicite derivate dalla quota, non probabilità reali o garanzie.
-- Il “ritorno lordo” è quota totale × puntata; il profitto teorico sottrae la puntata.
-- Per una fissa viene usato il primo esito selezionato; per una doppia ogni esito selezionato genera un'alternativa combinatoria.
+- La “probabilità implicita (con aggio)” è 100 ÷ quota totale e sovrastima: ogni quota include il margine del bookmaker, che su più gambe si compone. La “probabilità stimata (senza aggio)” toglie il margine in modo proporzionale sui mercati completi (1X2, Handicap, Doppia Chance, Under/Over, Goal/NoGoal, Segna Goal); dove il mercato è incompleto resta l'implicita. Il riepilogo mostra anche la probabilità che almeno una colonna vinca e il ritorno atteso, solo se le colonne sono mutuamente esclusive (non con la Doppia Chance). Sono stime con partite indipendenti, non garanzie.
+- Il ritorno lordo è quota totale × puntata; il profitto teorico sottrae la puntata. Nella stampa colonne si riportano solo quota totale e vincita netta (esclusi eventuali bonus).
+- La selezione viene dedotta automaticamente: zero quote = partita esclusa, una quota = fissa, due quote dello stesso mercato = doppia. Una scelta in un mercato diverso sostituisce la selezione precedente. Le doppie tra mercati diversi non sono ammesse. In un vecchio backup, un abbinamento di quel tipo viene ricondotto a fissa conservando la prima quota e l’app mostra un avviso.
 - Se il file viene aperto con `file://`, alcuni browser possono limitare i moduli JavaScript. Per provarlo in locale usa un server statico oppure GitHub Pages.
 
 ## Test manuali suggeriti
 1. Inserisci `Milan - Roma; 2.10; 3.20; 3.60` e verifica che la partita venga caricata con quote 1X2.
-2. Aggiungi una seconda partita e seleziona una doppia per entrambe: il sistema deve produrre 4 colonne.
+2. Aggiungi una seconda partita e clicca due quote dello stesso mercato in entrambe le righe: il sistema deve produrre 4 colonne.
 3. Con 10 doppie, il sistema deve produrre esattamente 1.024 colonne. Il generatore deve rifiutare 11 partite o più di 2 esiti su una partita variabile.
 4. Imposta un filtro dinamico su un esito presente nelle doppie e controlla che il contatore e la tabella si aggiornino. Gli esiti fissi sono esclusi dal catalogo perché presenti in tutte le colonne.
 5. Crea quattro doppie selezionando Over 2.5 e Under 2.5 in ognuna; imposta “Over 2.5 · Max = 3” e verifica che restino le colonne con non più di tre Over.
 6. Esporta CSV e aprilo con un foglio di calcolo: devono esserci intestazioni e celle correttamente quotate.
-7. Usa “Stampa colonne”: deve mostrare le selezioni per partita e tutti i dati economici. Il layout usa A4 orizzontale e deve contenere 32 colonne in non più di 2 pagine; da 33 colonne in poi può continuare su altre pagine. “Stampa sistema integrale” deve stare in un solo A4 verticale.
+7. Usa “Stampa colonne”: mostra le selezioni per partita, in grassetto le fisse e, a destra, soltanto quota totale e vincita netta. Il layout usa A4 orizzontale e deve contenere 32 colonne in non più di 2 pagine; da 33 colonne in poi può continuare su altre pagine. “Stampa sistema integrale” deve stare in un solo A4 verticale.
 8. Prova l'URL Sisal: se CORS lo consente, il parser importa esclusivamente le righe della sezione Serie A che rispettano la struttura prevista.
 9. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio che indirizza al download locale, mentre input manuale e selezione file restano disponibili.
 10. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
 
 ## Limiti e uso da smartphone
-L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, griglia a due colonne quando lo spazio lo consente e tabella risultati scorrevole in orizzontale. Il limite è rigido: massimo 10 partite e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
+L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, griglia a due colonne quando lo spazio lo consente e tabella risultati scorrevole in orizzontale. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
 
 ## Stima Bonus Multipla Sisal
 L'interfaccia include una stima facoltativa del Bonus Multipla. La stima considera eventi con quota almeno 1,25 e applica un fattore composto del 4% dal quinto evento idoneo, con limite indicativo del 177%. Le FAQ Sisal descrivono, ad esempio, circa +8% per 6 eventi e +12% per 7 eventi idonei. Questa è una simulazione informativa: non certifica che il bonus venga riconosciuto alle singole colonne di un sistema. Controllare sempre il bonus effettivamente mostrato da Sisal sul biglietto prima di confermare. Fonte: https://www.sisal.it/scommesse-matchpoint/faq
@@ -56,7 +65,7 @@ Con Node.js 20 o successivo, esegui `npm test`. I test verificano formati manual
 
 
 ## Backup e ripristino JSON
-Nel pannello “Backup e ripristino delle impostazioni” si può esportare un file JSON contenente partite caricate, esiti selezionati, filtri dinamici, puntata, preferenza Bonus Multipla, tema, testo manuale, elenco squadre e stato della conferma stagionale. Per spostare i dati su un altro dispositivo, scarica il file, apri l'app sul nuovo dispositivo e seleziona “Ripristina da JSON”. Il ripristino chiede conferma e sostituisce le impostazioni locali; il file viene controllato prima di applicare i dati e viene rifiutato se ha un formato sconosciuto, contiene quote non valide o supera il limite di 10 partite. Le colonne generate non vengono conservate: dopo il ripristino premi “Genera sistema” per ricalcolarle con le impostazioni importate. Conserva i backup in una posizione privata: possono contenere quote e combinazioni personali.
+Nel pannello “Backup e ripristino delle impostazioni” si può esportare un file JSON contenente partite caricate, esiti selezionati, filtri dinamici, puntata, preferenza Bonus Multipla, tema, testo manuale, elenco squadre e stato della conferma stagionale. Per spostare i dati su un altro dispositivo, scarica il file, apri l'app sul nuovo dispositivo e seleziona “Ripristina da JSON”. Il ripristino chiede conferma e sostituisce le impostazioni locali; il file viene controllato prima di applicare i dati e viene rifiutato se ha un formato sconosciuto, contiene quote non valide o supera il limite di 30 partite caricate. Le colonne generate non vengono conservate: dopo il ripristino premi “Genera sistema” per ricalcolarle con le impostazioni importate. Conserva i backup in una posizione privata: possono contenere quote e combinazioni personali.
 
 ## Installazione e controllo prima della generazione
 Il pulsante “Installa app” usa il prompt nativo se il browser lo mette a disposizione; altrimenti mostra le istruzioni per Chrome Android o Safari iOS. La disponibilità dipende dal browser e dalle condizioni di installazione del sito. Il progetto non registra un service worker e non promette funzionamento offline.

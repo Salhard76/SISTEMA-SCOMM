@@ -1,13 +1,16 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=print-layout-20261022';
-import { generateSystem } from './js/generator.js?v=print-layout-20261022';
-import { applyFilters, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=print-layout-20261022';
-import { formatEuro, formatQuota } from './js/calculator.js?v=print-layout-20261022';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=print-layout-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=print-layout-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=print-layout-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=v3-20261022';
+import { generateSystem } from './js/generator.js?v=v3-20261022';
+import { applyFilters, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=v3-20261022';
+import { formatEuro, formatQuota } from './js/calculator.js?v=v3-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=v3-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=v3-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=v3-20261022';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=v3-20261022';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=v3-20261022';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=v3-20261022';
 
 const $ = id => document.getElementById(id);
-const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null };
+const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
@@ -151,11 +154,16 @@ function restoreState() {
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
     $('sisalBonus').checked = data.sisalBonus !== false;
-    if (Array.isArray(data.matches)) state.matches = data.matches.slice(0, MAX_MATCHES).map(m => ({ ...m, selezionati: (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH) }));
+    if (Array.isArray(data.matches)) {
+      const normalized = normalizeMatchList(data.matches.slice(0, MAX_LOADED_MATCHES));
+      state.matches = normalized.matches;
+      state.legacyAdjustedCount = normalized.adjustedCount;
+    }
     if (data.outcomeFilterLimits && typeof data.outcomeFilterLimits === 'object') state.outcomeFilterLimits = data.outcomeFilterLimits;
     state.source = typeof data.source === 'string' ? data.source : '';
     state.pdfDiagnostics = data.pdfDiagnostics && typeof data.pdfDiagnostics === 'object' ? data.pdfDiagnostics : null;
     document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
+    if (state.legacyAdjustedCount) saveState();
   } catch { /* Stato salvato corrotto: partenza pulita. */ }
 }
 function getBackupData() {
@@ -190,7 +198,9 @@ function applyBackup(data) {
   // L’elenco viene scritto prima di modificare lo stato dell’interfaccia: se lo storage non è disponibile,
   // il ripristino si interrompe senza sostituire le partite correnti.
   if (Array.isArray(data.teamLines)) setSerieATeamLines(data.teamLines);
-  state.matches = data.matches;
+  const normalizedMatches = normalizeMatchList(data.matches);
+  state.matches = normalizedMatches.matches;
+  state.legacyAdjustedCount = normalizedMatches.adjustedCount;
   state.rawColumns = [];
   state.finalColumns = [];
   state.lastGenerated = false;
@@ -213,8 +223,8 @@ function applyBackup(data) {
   $('summary').textContent = 'Dati ripristinati. Il sistema va rigenerato per aggiornare conteggi e colonne.';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   saveState();
-  $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate. Premi “Genera sistema” per ricalcolare le colonne.`;
-  status('Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', 'success');
+  $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate.${state.legacyAdjustedCount ? ` ${state.legacyAdjustedCount} doppie tra mercati diversi di un vecchio backup sono state convertite in fisse mantenendo la prima quota selezionata.` : ''} Premi “Genera sistema” per ricalcolare le colonne.`;
+  status(state.legacyAdjustedCount ? `Backup ripristinato con avviso: ${state.legacyAdjustedCount} vecchie doppie tra mercati diversi sono state convertite in fisse. Controlla il foglio quote.` : 'Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', state.legacyAdjustedCount ? 'warning' : 'success');
 }
 $('exportBackup').addEventListener('click', () => {
   try { downloadBackup(); }
@@ -262,39 +272,81 @@ function renderDynamicFilters() {
     return `<div class="dynamic-filter-row" data-filter-row="${key}">
       <div class="dynamic-filter-name"><strong>${escapeHtml(item.label)}</strong><small>Esito variabile in ${item.occurrences} selezioni delle doppie</small></div>
       <div class="dynamic-filter-inputs">
-        <label for="dyn-min-${index}">Min <input id="dyn-min-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="min" data-filter-key="${key}" value="${saved.min ?? ''}"></label>
-        <label for="dyn-max-${index}">Max <input id="dyn-max-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="max" data-filter-key="${key}" value="${saved.max ?? ''}"></label>
+        <label for="dyn-min-${index}">Min <input id="dyn-min-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="min" data-filter-key="${key}" value="${escapeHtml(saved.min ?? '')}"></label>
+        <label for="dyn-max-${index}">Max <input id="dyn-max-${index}" type="number" min="0" max="${item.occurrences}" step="1" placeholder="—" data-dynamic-limit="max" data-filter-key="${key}" value="${escapeHtml(saved.max ?? '')}"></label>
       </div>
     </div>`;
   }).join('');
 }
+function selectedClass(match, key) {
+  const selected = match.selezionati || [];
+  if (!selected.includes(key)) return '';
+  return selected.length > 1 ? 'is-double' : 'is-fixed';
+}
 function renderMatches() {
   const root = $('matches');
-  if (!state.matches.length) { root.innerHTML = ''; renderDynamicFilters(); updateCounter(); return; }
-  root.innerHTML = state.matches.map((m, mi) => {
-    const groups = outcomeGroups(m);
-    const selected = (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH);
-    const fixed = m.tipo === 'fissa';
-    return `<article class="match-card" data-match="${escapeHtml(m.id)}">
-      <div class="match-top"><div><div class="match-name">${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</div><div class="match-meta">${escapeHtml([m.competizione,m.data,m.ora].filter(Boolean).join(' · ') || 'Competizione non specificata')}</div></div>
-      <div class="match-controls"><label><input type="radio" name="tipo-${mi}" value="fissa" ${fixed?'checked':''}> Fissa</label><label><input type="radio" name="tipo-${mi}" value="doppia" ${!fixed?'checked':''}> Doppia</label><button type="button" class="button secondary remove-match" data-id="${escapeHtml(m.id)}">Rimuovi</button></div></div>
-      ${groups.map(([market, outcomes]) => `<div class="market-title">${escapeHtml(market)}</div><div class="outcomes">${outcomes.map((o, oi) => {
-        const key = `${o.market}:${o.outcome}`;
-        const checked = selected.includes(key);
-        return `<div class="outcome ${checked?'':'disabled'}"><label><input type="checkbox" data-match-id="${escapeHtml(m.id)}" data-outcome-key="${escapeHtml(key)}" ${checked?'checked':''}><span>${escapeHtml(o.label)}</span></label><span class="odd">${formatQuota(o.quota)}</span></div>`;
-      }).join('')}</div>`).join('')}
-      <p class="match-meta">Massimo 2 scelte per partita. Una fissa usa 1 esito; una doppia usa 2 alternative.</p>
-    </article>`;
+  if (!state.matches.length) {
+    root.innerHTML = '<p class="empty-state">Carica le partite per visualizzare il foglio quote.</p>';
+    renderDynamicFilters(); updateCounter(); return;
+  }
+  // La griglia viene ridisegnata a ogni tocco: senza questo ripristino lo scorrimento orizzontale
+  // tornava a zero e dopo ogni selezione bisognava ririscorrere fino al mercato desiderato.
+  const previousScroll = root.querySelector('.quote-sheet-scroll');
+  const keepScroll = previousScroll ? { left: previousScroll.scrollLeft, top: previousScroll.scrollTop } : null;
+  const focused = document.activeElement?.matches?.('button[data-outcome-key][data-match-id]')
+    ? { matchId: document.activeElement.dataset.matchId, key: document.activeElement.dataset.outcomeKey } : null;
+  const groups = buildQuoteSheetGroups(state.matches);
+  const groupHeaders = groups.map(group => `<th class="quote-group" colspan="${group.columns.length}">${escapeHtml(group.label)}</th>`).join('');
+  const outcomeHeaders = groups.flatMap(group => group.columns).map(column => `<th class="quote-outcome-head" title="${escapeHtml(column.markets.join(' / '))}">${escapeHtml(column.label)}</th>`).join('');
+  const rows = state.matches.map(match => {
+    normalizeMatchSelection(match);
+    const quoteCells = groups.flatMap(group => group.columns).map(column => {
+      if (column.staticField) {
+        const value = match[column.staticField];
+        return `<td class="quote-cell quote-cell-static"><span>${escapeHtml(value || '—')}</span></td>`;
+      }
+      const outcome = (match.esiti || []).find(item => matchesQuoteColumn(item, column));
+      if (!outcome) return '<td class="quote-cell quote-cell-empty"><span aria-hidden="true">—</span></td>';
+      const key = `${outcome.market}:${outcome.outcome}`;
+      const className = selectedClass(match, key);
+      const selectionLabel = match.selezionati?.length === 2 ? 'Doppia automatica' : 'Fissa automatica';
+      return `<td class="quote-cell"><button type="button" class="odds-cell ${className}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
+    }).join('');
+    const matchName = `${match.casa} – ${match.trasferta}`;
+    return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''}" data-match="${escapeHtml(match.id)}">
+      <td class="quote-date">${escapeHtml(match.data || '—')}<button type="button" class="remove-match" data-id="${escapeHtml(match.id)}" aria-label="Rimuovi ${escapeHtml(matchName)}" title="Rimuovi partita">×</button></td>
+      <td class="quote-time">${escapeHtml(match.ora || '—')}</td>
+      <td class="quote-code">${escapeHtml(match.palinsesto || match.pal || '—')}</td>
+      <td class="quote-code">${escapeHtml(match.avvenimento || match.avv || '—')}</td>
+      <th scope="row" class="quote-team">${escapeHtml(match.casa)}</th>
+      <td class="quote-team">${escapeHtml(match.trasferta)}</td>
+      ${quoteCells}
+    </tr>`;
   }).join('');
+  root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
+    <th class="quote-fixed-head" rowspan="2">Data</th><th class="quote-fixed-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-code" rowspan="2">Avv.</th><th class="quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}
+    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote dello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
+  const scroller = root.querySelector('.quote-sheet-scroll');
+  if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
+  if (focused) {
+    const again = [...root.querySelectorAll('button[data-outcome-key][data-match-id]')].find(b => b.dataset.matchId === focused.matchId && b.dataset.outcomeKey === focused.key);
+    again?.focus({ preventScroll: true });
+  }
   renderDynamicFilters();
   updateCounter();
 }
 function readEvents() {
   const events = [];
   for (const m of state.matches) {
-    const selected = (m.selezionati || []).map(key => m.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
+    const fair = fairProbabilities(m);
+    const selected = (m.selezionati || []).map(key => {
+      const outcome = m.esiti.find(o => `${o.market}:${o.outcome}` === key);
+      return outcome ? { ...outcome, prob: fair.get(key) ?? 1 / Number(outcome.quota), probFair: fair.has(key) } : null;
+    }).filter(Boolean);
     if (!selected.length) continue;
-    events.push({ id: m.id, nome: `${m.casa} - ${m.trasferta}`, tipo: m.tipo || (selected.length > 1 ? 'doppia' : 'fissa'), esiti: selected });
+    const usesHandicap = selected.some(outcome => selectionMarketKey(outcome) === 'handicap');
+    const handicapSuffix = usesHandicap && String(m.handicap || '').trim() ? ` (handicap ${m.handicap})` : '';
+    events.push({ id: m.id, nome: `${m.casa} - ${m.trasferta}${handicapSuffix}`, tipo: selected.length === 2 ? 'doppia' : 'fissa', esiti: selected });
   }
   return events;
 }
@@ -337,8 +389,8 @@ function getPreflightReport() {
     const selected = selectedKeys.map(key => match.esiti?.find(outcome => `${outcome.market}:${outcome.outcome}` === key)).filter(Boolean);
     if (selected.length !== selectedKeys.length) errors.push(`La partita ${match.casa} – ${match.trasferta} contiene una selezione non collegata a una quota.`);
     if (!selected.length) errors.push(`La partita ${match.casa} – ${match.trasferta} non ha esiti validi selezionati.`);
-    if (match.tipo === 'doppia' && selected.length !== 2) errors.push(`La doppia ${match.casa} – ${match.trasferta} deve avere esattamente due esiti selezionati.`);
-    if (match.tipo === 'fissa' && selected.length > 1) errors.push(`La fissa ${match.casa} – ${match.trasferta} deve avere un solo esito.`);
+    if (selected.length > 2) errors.push(`La partita ${match.casa} – ${match.trasferta} supera il limite di due esiti.`);
+    if (selected.length === 2 && selectionMarketKey(selected[0]) !== selectionMarketKey(selected[1])) errors.push(`La doppia ${match.casa} – ${match.trasferta} deve contenere due esiti dello stesso mercato.`);
     for (const outcome of selected) {
       if (!Number.isFinite(Number(outcome.quota)) || Number(outcome.quota) <= 1) errors.push(`Quota mancante o non valida: ${match.casa} – ${match.trasferta}, ${outcome.label || outcome.outcome}.`);
     }
@@ -400,7 +452,7 @@ function buildBase() {
     if (result.reason === 'invalid_double') return { error: 'Ogni doppia deve avere esattamente due esiti selezionati.' };
     return { error: `Sistema oltre il limite matematico di ${MAX_SYSTEM_COLUMNS.toLocaleString('it-IT')} colonne. Controlla le selezioni.` };
   }
-  return { result };
+  return { result, exclusive: isExclusiveSystem(events) };
 }
 function updateCounter() {
   renderPreflightReport();
@@ -422,7 +474,7 @@ function updateCounter() {
   $('beforeCount').textContent = result.colonne.length.toLocaleString('it-IT');
   $('afterCount').textContent = filtered.colonneDopo.toLocaleString('it-IT');
   if (state.lastGenerated) {
-    state.rawColumns = result.colonne; state.finalColumns = filtered.colonne;
+    state.rawColumns = result.colonne; state.finalColumns = filtered.colonne; state.exclusive = built.exclusive;
     renderTable();
   }
 }
@@ -450,17 +502,34 @@ function renderTable() {
   const eligibleCount = bonuses.filter(x => x > 0).length;
   const returns = cols.map((c, i) => c.quotaTotale * stake * (1 + bonuses[i]));
   const minReturn = Math.min(...returns), maxReturn = Math.max(...returns);
-  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.`;
-  const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
-  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const approx = cols.some(c => c.esiti.some(e => e.probFair === false));
+  const hit = state.exclusive ? cols.reduce((t, c) => t + c.prob, 0) : null;
+  const expected = state.exclusive ? cols.reduce((t, c) => t + c.prob * c.quotaTotale * stake, 0) / totalStake : null;
+  const probLine = hit !== null
+    ? ` Stima probabilità che almeno una colonna vinca: ${(Math.min(hit, 1) * 100).toLocaleString('it-IT', { maximumFractionDigits: 1 })}% · ritorno atteso (senza bonus) ${(expected * 100).toLocaleString('it-IT', { maximumFractionDigits: 0 })}% della puntata totale${approx ? ' · per alcune quote il mercato non è completo: aggio non rimosso, stima ottimistica' : ''}. Stime con partite indipendenti.`
+    : ' Probabilità complessiva non calcolata: la Doppia Chance rende le colonne non mutuamente esclusive.';
+  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.${probLine}`;
+  const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
+  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
+}
+function buildPrintTable() {
+  const cols = state.finalColumns;
+  if (!cols.length) { $('printTableWrap').innerHTML = ''; return; }
+  const stake = Math.max(0, Number($('stake').value) || 0);
+  const totalStake = cols.length * stake;
   const activeEvents = readEvents();
   const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
   const printRows = cols.map((column, index) => {
     const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
-    const eventCells = activeEvents.map(event => `<td>${escapeHtml(selectedByEvent.get(event.id)?.label || '—')}</td>`).join('');
-    return `<tr><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${(100/column.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[index] ? (bonuses[index]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[index])}</td><td class="num">${formatEuro(returns[index]-stake)}</td></tr>`;
+    const eventCells = activeEvents.map(event => {
+      const label = escapeHtml(selectedByEvent.get(event.id)?.label || '—');
+      return `<td>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
+    }).join('');
+    const netWin = column.quotaTotale * stake - stake;
+    return `<tr><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
   }).join('');
-  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">${cols.length} colonne · Puntata per colonna ${formatEuro(stake)} · Costo totale ${formatEuro(totalStake)}</p><table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo</th><th>Profitto teorico</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Ritorni e bonus sono stime, non garantiti. Quote soggette a variazione.</p>`;
+  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">${cols.length} colonne · Puntata per colonna ${formatEuro(stake)} · Costo totale ${formatEuro(totalStake)}</p><table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Vincita netta calcolata come (quota totale × puntata per colonna) − puntata. Non include eventuali bonus. Quote soggette a variazione.</p>`;
 }
 let pdfJsBase = '';
 let pdfJsLoadPromise = null;
@@ -470,6 +539,7 @@ async function loadPdfJs() {
 
   pdfJsLoadPromise = (async () => {
     const cdns = [
+      new URL('./vendor/pdfjs', document.baseURI).href,   // copia inclusa nel progetto: nessun CDN e funziona anche offline
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174',
       'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build'
     ];
@@ -536,7 +606,7 @@ function showPdfDiagnostics(diagnostics, importedCount = 0) {
 }
 
 function clearImportedMatches(message) {
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null;
+  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
   renderMatches(); saveState();
   $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
   $('summary').textContent = message;
@@ -556,14 +626,15 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
     matches = serieA;
   }
   const filteredFound = matches.length;
-  matches = matches.slice(0, MAX_MATCHES);
+  matches = matches.slice(0, MAX_LOADED_MATCHES);
   if (isPdfSource) showPdfDiagnostics(diagnostics, matches.length);
-  state.matches = matches.map(m => ({ ...m, tipo:'fissa', selezionati:m.esiti.slice(0,1).map(o => `${o.market}:${o.outcome}`) }));
+  state.matches = matches.map(m => normalizeMatchSelection({ ...m, tipo:'fissa', selezionati:[] }));
+  state.legacyAdjustedCount = 0;
   state.source = source;
   state.pdfDiagnostics = isPdfSource ? (diagnostics || null) : null;
   state.lastGenerated = false;
   renderMatches(); saveState();
-  status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
+  status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Puoi selezionare al massimo ${MAX_MATCHES} partite, con ${MAX_CHOICES_PER_MATCH} scelte per partita.${filteredFound > MAX_LOADED_MATCHES ? ` Attenzione: ${filteredFound - MAX_LOADED_MATCHES} partite oltre il limite di ${MAX_LOADED_MATCHES} non sono state caricate.` : ''}`, filteredFound > MAX_LOADED_MATCHES ? 'warning' : 'success');
   $('tableWrap').innerHTML = '<p class="empty-state">Premi “Genera sistema” per vedere le colonne.</p>';
 }
 // Entrambe le modalità restano visibili: nessuna scheda da attivare su Android.
@@ -632,47 +703,46 @@ $('pdfFile').addEventListener('change', async event => {
   }
 });
 
-$('matches').addEventListener('change', event => {
-  const target = event.target;
-  const card = target.closest('.match-card');
-  if (!card) return;
-  const match = state.matches.find(m => m.id === card.dataset.match);
-  if (!match) return;
-  if (target.matches('input[type=radio]')) {
-    match.tipo = target.value;
-    if (match.tipo === 'fissa' && match.selezionati.length > 1) match.selezionati = match.selezionati.slice(0,1);
-    if (match.tipo === 'doppia' && match.selezionati.length < 2) {
-      const first = match.esiti.find(o => match.selezionati.includes(`${o.market}:${o.outcome}`));
-      // Quando si attiva una doppia, preferisce l'alternativa dello stesso mercato
-      // (per esempio Over 2.5 + Under 2.5 invece di aggiungere automaticamente 1/X/2).
-      const extra = match.esiti.find(o => first && o.market === first.market && !match.selezionati.includes(`${o.market}:${o.outcome}`))
-        || match.esiti.find(o => !match.selezionati.includes(`${o.market}:${o.outcome}`));
-      if (extra) match.selezionati.push(`${extra.market}:${extra.outcome}`);
-    }
-    match.selezionati = match.selezionati.slice(0, MAX_CHOICES_PER_MATCH);
-    renderMatches(); saveState(); updateCounter(); return;
-  }
-  if (target.matches('input[type=checkbox][data-outcome-key]')) {
-    const key = target.dataset.outcomeKey;
-    if (target.checked) {
-      if (match.tipo === 'fissa') match.selezionati = [key];
-      else if (!match.selezionati.includes(key)) {
-        if (match.selezionati.length >= MAX_CHOICES_PER_MATCH) {
-          status(`Puoi selezionare al massimo ${MAX_CHOICES_PER_MATCH} esiti per partita.`, 'error');
-          renderMatches();
-          return;
-        }
-        match.selezionati.push(key);
-      }
-    } else match.selezionati = match.selezionati.filter(x => x !== key);
-    renderMatches(); saveState(); updateCounter();
-  }
-});
 $('matches').addEventListener('click', event => {
-  const button = event.target.closest('.remove-match');
-  if (!button) return;
-  state.matches = state.matches.filter(m => m.id !== button.dataset.id);
+  const removeButton = event.target.closest('.remove-match');
+  if (removeButton) {
+    state.matches = state.matches.filter(match => match.id !== removeButton.dataset.id);
+    state.lastGenerated = false;
+    renderMatches(); saveState(); updateCounter();
+    status('Partita rimossa dal foglio quote.');
+    return;
+  }
+  const quoteButton = event.target.closest('button[data-outcome-key][data-match-id]');
+  if (!quoteButton) return;
+  const match = state.matches.find(item => item.id === quoteButton.dataset.matchId);
+  if (!match) return;
+  const outcome = match.esiti.find(item => `${item.market}:${item.outcome}` === quoteButton.dataset.outcomeKey);
+  if (!outcome) {
+    status('Quota non più disponibile per questa partita. Ricarica la scheda.', 'error');
+    return;
+  }
+  const activeCount = state.matches.filter(item => (item.selezionati || []).length > 0).length;
+  if (!(match.selezionati || []).length && activeCount >= MAX_MATCHES) {
+    status(`Hai già ${MAX_MATCHES} partite selezionate: è il massimo del sistema. Deseleziona una partita prima di sceglierne un'altra.`, 'error');
+    return;
+  }
+  const result = toggleMatchOutcome(match, quoteButton.dataset.outcomeKey);
+  if (!result.changed) {
+    status(result.message || 'Non è stato possibile modificare la selezione.', 'error');
+    return;
+  }
+  state.lastGenerated = false;
+  state.rawColumns = []; state.finalColumns = [];
+  $('tableWrap').innerHTML = '<p class="empty-state">Selezioni modificate. Premi “Genera sistema” per ricalcolare le colonne.</p>';
+  $('printTableWrap').innerHTML = '';
+  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   renderMatches(); saveState(); updateCounter();
+  if (match.selezionati.length === 2) status(`Doppia automatica: ${match.casa} – ${match.trasferta}, mercato ${outcome.market}.`, 'success');
+  else if (match.selezionati.length === 1) {
+    const fixedKey = match.selezionati[0];
+    const fixedOutcome = match.esiti.find(item => `${item.market}:${item.outcome}` === fixedKey);
+    status(`Fissa automatica: ${match.casa} – ${match.trasferta}, ${fixedOutcome?.label || ''} @ ${formatQuota(fixedOutcome?.quota)}.`, 'success');
+  } else status(`Selezioni rimosse da ${match.casa} – ${match.trasferta}.`);
 });
 $('dynamicFilters').addEventListener('input', event => {
   const input = event.target.closest('input[data-dynamic-limit]');
@@ -685,14 +755,19 @@ $('dynamicFilters').addEventListener('input', event => {
   saveState();
   debouncedUpdateCounter();
 });
+// Con 1.024 colonne il ridisegno costa mezzo secondo: lo si fa a fine digitazione, non a ogni tasto.
+let stakeRenderTimeout = null;
 $('stake').addEventListener('input', () => {
   clearTimeout(stakeSaveTimeout);
   stakeSaveTimeout = setTimeout(saveState, 250);
-  if (state.lastGenerated) renderTable();
+  clearTimeout(stakeRenderTimeout);
+  stakeRenderTimeout = setTimeout(() => { if (state.lastGenerated) renderTable(); }, 300);
 });
 $('stake').addEventListener('change', () => {
   clearTimeout(stakeSaveTimeout);
+  clearTimeout(stakeRenderTimeout);
   saveState();
+  if (state.lastGenerated) renderTable();
 });
 $('sisalBonus').addEventListener('change', () => { saveState(); if (state.lastGenerated) renderTable(); });
 $('generate').addEventListener('click', () => {
@@ -712,19 +787,22 @@ Vuoi procedere comunque?`)) return;
   if (built.error) { status(built.error, 'error'); return; }
   state.rawColumns = built.result.colonne;
   state.finalColumns = applyFilters(state.rawColumns, collectFilters()).colonne;
+  state.exclusive = built.exclusive;
   state.lastGenerated = true;
   renderTable();
   status('Sistema generato. Puoi esportare il CSV leggibile, stampare il sistema integrale o le singole colonne.', 'success');
 });
 $('exportCsv').addEventListener('click', () => exportCSV(state.finalColumns));
 $('exportText').addEventListener('click', () => exportText(state.finalColumns, Math.max(0, Number($('stake').value) || 0)));
-$('printTable').addEventListener('click', stampaTabella);
+$('printTable').addEventListener('click', () => { buildPrintTable(); stampaTabella(); });
 $('printIntegral').addEventListener('click', () => {
   const matches = state.matches.filter(m => (m.selezionati || []).length);
   const integral = $('integralPrint');
   const choices = matches.map((m, i) => {
     const selected = (m.selezionati || []).map(key => m.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
-    return `<article class="integral-match"><span class="integral-number">${i+1}</span><div><strong>${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</strong><small>${escapeHtml([m.competizione,m.data,m.ora].filter(Boolean).join(' · '))}</small><p>${selected.map(o => `${escapeHtml(o.label)} <b>@ ${formatQuota(o.quota)}</b>`).join(' &nbsp; / &nbsp; ')}</p></div><em>${m.tipo === 'doppia' ? 'DOPPIA' : 'FISSA'}</em></article>`;
+    const usesHandicap = selected.some(outcome => selectionMarketKey(outcome) === 'handicap');
+    const meta = [m.competizione, m.data, m.ora, usesHandicap && String(m.handicap || '').trim() ? `Handicap ${m.handicap}` : ''].filter(Boolean).join(' · ');
+    return `<article class="integral-match"><span class="integral-number">${i+1}</span><div><strong>${escapeHtml(m.casa)} – ${escapeHtml(m.trasferta)}</strong><small>${escapeHtml(meta)}</small><p>${selected.map(o => `${escapeHtml(o.label)} <b>@ ${formatQuota(o.quota)}</b>`).join(' &nbsp; / &nbsp; ')}</p></div><em>${selected.length === 2 ? 'DOPPIA' : 'FISSA'}</em></article>`;
   }).join('');
   integral.innerHTML = `<h1>Sistema integrale</h1><p class="integral-subtitle">Selezioni complete · ${matches.length} partite · ${state.rawColumns.length.toLocaleString('it-IT')} colonne teoriche</p>${choices}<div class="integral-note">Questo foglio riepiloga tutte le selezioni del sistema, senza stampare l'elenco delle singole colonne. Quote indicative, soggette a variazione.</div>`;
   printWithMode('integral');
@@ -836,12 +914,13 @@ window.addEventListener('appinstalled', () => {
 
 $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null;
+  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
   $('manualInput').value = ''; $('stake').value = '0.10';
   state.outcomeFilterLimits = {};
   renderDynamicFilters();
-  localStorage.removeItem(savedKey);
-  renderMatches(); $('summary').textContent = 'Seleziona almeno una partita e i relativi esiti.';
+  try { localStorage.removeItem(savedKey); } catch { /* storage non disponibile */ }
+  renderMatches(); $('summary').textContent = 'Seleziona le quote dal foglio e genera il sistema.';
+  $('printTableWrap').innerHTML = ''; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
   $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
   $('printTableWrap').innerHTML = '';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
@@ -850,5 +929,8 @@ $('reset').addEventListener('click', () => {
 restoreState();
 renderTeamListEditor();
 updateSeasonReminder();
-if (state.matches.length) { renderMatches(); status('Sessione ripristinata dal dispositivo.'); }
+if (state.matches.length) {
+  renderMatches();
+  status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} vecchie doppie tra mercati diversi sono state convertite in fisse mantenendo la prima quota: controlla le selezioni.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
+}
 else $('pdfUrl').value = SISAL_DEFAULT_URL;

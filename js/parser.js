@@ -246,16 +246,20 @@ function parseSerieAPdfLine(line, diagnostics) {
     return null;
   };
   // Struttura del bollettino: DATA ORA PAL AVV SQUADRA 1 SQUADRA 2 [handicap] 21 quote decimali.
-  const header = original.match(/^(\d{1,2}\/\d{1,2})\s+(\d{1,2}\.\d{2})\s+\d{4,6}\s+\d{3,6}\s+(.+)$/);
+  const header = original.match(/^(\d{1,2}\/\d{1,2})\s+(\d{1,2}\.\d{2})\s+(\d{4,6})\s+(\d{3,6})\s+(.+)$/);
   if (!header) return reject('structure');
 
   const data = header[1];
   const ora = header[2];
-  const body = header[3];
+  const palinsesto = header[3];
+  const avvenimento = header[4];
+  const body = header[5];
   const odds = [...body.matchAll(/\b\d{1,3}[.,]\d{1,3}\b/g)];
   // Handicap è un intero (1 / -1), quindi non entra nella lista delle quote decimali.
   if (odds.length !== SERIE_A_COLUMNS.length) return reject('quote_count', { foundOdds: odds.length });
 
+  const handicapRaw = body.slice(odds[2].index + odds[2][0].length, odds[3].index).trim();
+  const handicap = /^[+-]?\d+$/.test(handicapRaw) ? handicapRaw : '';
   const teamText = body.slice(0, odds[0].index).trim();
   const teams = splitSerieATeams(teamText);
   if (!teams) return reject('teams', { foundOdds: odds.length });
@@ -273,6 +277,9 @@ function parseSerieAPdfLine(line, diagnostics) {
     id: `match-${Math.random().toString(36).slice(2, 10)}`,
     data,
     ora,
+    palinsesto,
+    avvenimento,
+    handicap,
     casa: teams.casa,
     trasferta: teams.trasferta,
     competizione: 'Serie A',

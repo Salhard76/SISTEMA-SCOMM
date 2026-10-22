@@ -1,6 +1,6 @@
 /* Generatore con limiti strutturali: massimo 10 partite, 2 esiti per partita e 1.024 colonne. */
-import { quotaTotale } from './calculator.js?v=backup-pwa-validation-20261022';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=backup-pwa-validation-20261022';
+import { quotaTotale } from './calculator.js?v=v3-20261022';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=v3-20261022';
 
 export { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS };
 
@@ -56,7 +56,9 @@ export function generateSystem(events, maxColumns = MAX_SYSTEM_COLUMNS) {
   colonne = colonne.map((c, i) => ({
     ...c,
     id: i + 1,
-    quotaTotale: quotaTotale(c.esiti)
+    quotaTotale: quotaTotale(c.esiti),
+    // Probabilità stimata (aggio rimosso gamba per gamba quando il mercato è completo).
+    prob: c.esiti.reduce((p, e) => p * (Number.isFinite(e.prob) ? e.prob : 1 / Number(e.quota)), 1)
   }));
 
   // Controllo finale anti-regressione: mai restituire più di 1.024 colonne.

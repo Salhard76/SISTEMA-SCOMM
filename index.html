@@ -8,18 +8,18 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=print-layout-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=print-layout-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=print-layout-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=print-layout-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=v3-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=v3-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=v3-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=v3-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=print-layout-20261022">
-  <script type="module" src="app.js?v=print-layout-20261022"></script>
+  <link rel="stylesheet" href="style.css?v=v3-20261022">
+  <script type="module" src="app.js?v=v3-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=print-layout-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=v3-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -36,7 +36,7 @@
     <p id="infoIntro" class="info-intro">Guida essenziale per importare le quote, costruire il sistema e conservare le tue impostazioni.</p>
     <div class="info-sections">
       <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su Android scarica prima il bollettino e poi selezionalo da Download/Scaricati. L'importazione diretta dal sito può essere bloccata dal browser. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
-      <section><h3>2. Scegli gli esiti</h3><p>Puoi caricare al massimo <strong>10 partite</strong> e scegliere fino a <strong>2 esiti per partita</strong>. Dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
+      <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra nello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
       <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
       <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
       <section><h3>5. Backup e squadre</h3><p>Da “Backup e ripristino” esporta un JSON e conservalo fuori dal dispositivo. Il ripristino sostituisce le impostazioni locali dopo conferma. L'elenco squadre si può modificare; quello di riferimento incluso nell'app non è un aggiornamento live dal sito ufficiale.</p></section>
@@ -58,7 +58,7 @@
       <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="input-title">Inserisci le quote</h2></div><span class="step-number">01</span></div>
       <section id="manualPanel" class="input-method-card manual-method" aria-labelledby="manual-title">
         <h3 id="manual-title">Incolla le quote manualmente</h3>
-        <p class="help">Questa sezione resta sempre visibile: non devi cambiare scheda. Una partita per riga; massimo 10 partite caricate e 2 esiti selezionabili per partita. Formato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85</code> oppure <code>Milan - Roma; 2.10; 3.20; 3.60</code>.</p>
+        <p class="help">Questa sezione resta sempre visibile: non devi cambiare scheda. Una partita per riga; fino a 30 partite caricate, massimo 10 selezionate e 2 esiti per partita. Formato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85</code> oppure <code>Milan - Roma; 2.10; 3.20; 3.60</code>.</p>
         <textarea id="manualInput" rows="5" spellcheck="false" autocomplete="off" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;23/10 20:45; Napoli; Roma; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
         <div class="button-row"><button id="parseManual" class="button primary" type="button">Carica partite</button><button id="clearInput" class="button secondary" type="button">Svuota</button></div>
       </section>
@@ -108,7 +108,7 @@
         <p id="backupStatus" class="help" aria-live="polite">L’importazione sostituirà le impostazioni locali dopo una tua conferma.</p>
       </details>
       <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
-      <div id="matches" class="matches"></div>
+      <p class="help quote-sheet-intro">Il foglio quote riprende l’ordine del bollettino. Tocca una quota (verde = fissa) o due quote dello stesso mercato (ambra = doppia); la tipologia viene rilevata automaticamente. Il valore H è informativo e non selezionabile.</p><div id="matches" class="matches"></div>
     </section>
 
     <section class="panel" aria-labelledby="filters-title">
@@ -134,7 +134,7 @@
         <p class="help">Stima indicativa: considera eventi con quota almeno 1,25 e applica un incremento composto del 4% per ogni evento idoneo dal quinto, con tetto indicativo del 177%. Il bonus ufficiale può dipendere dal tipo di biglietto e dalle condizioni Sisal; verifica sempre il valore mostrato nel carrello.</p>
       </div>
       <div id="preflightReport" class="preflight-report" aria-live="polite" hidden></div>
-      <div id="summary" class="summary" aria-live="polite">Seleziona almeno una partita e i relativi esiti.</div>
+      <div id="summary" class="summary" aria-live="polite">Seleziona le quote dal foglio e genera il sistema.</div>
       <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printIntegral" class="button secondary" type="button" disabled>Stampa sistema integrale</button><button id="printTable" class="button secondary" type="button" disabled>Stampa colonne</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>
       <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div><div id="printTableWrap" class="print-table-wrap"></div>
     </section>

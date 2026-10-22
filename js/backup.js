@@ -1,4 +1,4 @@
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=backup-pwa-validation-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=v3-20261022';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -25,7 +25,7 @@ export function validateBackupPayload(payload) {
 
   const inputMatches = data.matches ?? [];
   if (!Array.isArray(inputMatches)) throw new Error('Elenco partite non valido nel backup.');
-  if (inputMatches.length > MAX_MATCHES) throw new Error(`Il backup contiene ${inputMatches.length} partite: il limite è ${MAX_MATCHES}.`);
+  if (inputMatches.length > MAX_LOADED_MATCHES) throw new Error(`Il backup contiene ${inputMatches.length} partite: il limite è ${MAX_LOADED_MATCHES}.`);
   const matches = inputMatches.map((match, index) => {
     if (!match || typeof match !== 'object' || Array.isArray(match)) throw new Error(`Partita ${index + 1}: struttura non valida.`);
     const casa = asText(match.casa).trim();
@@ -52,7 +52,8 @@ export function validateBackupPayload(payload) {
       id: asText(match.id, `backup-match-${index + 1}`).trim() || `backup-match-${index + 1}`,
       casa, trasferta,
       data: asText(match.data), ora: asText(match.ora),
-      competizione: asText(match.competizione),
+      palinsesto: asText(match.palinsesto || match.pal), avvenimento: asText(match.avvenimento || match.avv),
+      handicap: asText(match.handicap), competizione: asText(match.competizione),
       tipo, esiti, selezionati
     };
   });
@@ -118,16 +119,4 @@ function validNumberString(value, fallback, min, max, label) {
   const n = Number(value);
   if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Valore ${label} non valido nel backup.`);
   return String(value);
-}
-function optionalIntegerString(value, min, max, label) {
-  if (value == null || value === '') return '';
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`Valore ${label} non valido nel backup.`);
-  return String(n);
-}
-function optionalNumberString(value, min, max, label) {
-  if (value == null || value === '') return '';
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Valore ${label} non valido nel backup.`);
-  return String(n);
 }
