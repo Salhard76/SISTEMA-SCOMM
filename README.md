@@ -19,7 +19,7 @@ Una partita per riga. Formato consigliato:
 Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. Mercati opzionali supportati: `O2.5=`, `U2.5=`, `Goal=`, `NoGoal=`. Le quote accettano punto o virgola decimale.
 
 ## Limiti noti
-- L'importazione PDF dipende da CORS e dalla struttura del PDF Sisal, che può cambiare. Il parser tenta di leggere soltanto Serie A, Serie B, Champions League ed Europa League; righe non riconosciute vengono saltate. Il parser PDF è best-effort e non può garantire il riconoscimento di tutti i layout.
+- L'importazione PDF dipende da CORS e dalla struttura del PDF Sisal, che può cambiare. Il parser PDF è specializzato sul layout Sisal del bollettino fornito: importa esclusivamente Serie A, usa un elenco configurabile delle squadre e richiede tutte le 21 quote decimali nell'ordine della tabella. Le righe non riconosciute vengono scartate per evitare associazioni errate.
 - Le probabilità sono probabilità implicite derivate dalla quota, non probabilità reali o garanzie.
 - Il “ritorno lordo” è quota totale × puntata; il profitto teorico sottrae la puntata.
 - Per una fissa viene usato il primo esito selezionato; per una doppia ogni esito selezionato genera un'alternativa combinatoria.
@@ -32,7 +32,7 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. Mer
 4. Imposta quota minima maggiore di tutte le colonne: il risultato deve essere vuoto senza errori.
 5. Esporta CSV e aprilo con un foglio di calcolo: devono esserci intestazioni e celle correttamente quotate.
 6. Usa “Stampa tabella”: la stampa deve nascondere input e pannelli non pertinenti.
-7. Prova l'URL Sisal: se CORS lo consente, il parser prova a importare solo le quattro competizioni consentite.
+7. Prova l'URL Sisal: se CORS lo consente, il parser importa esclusivamente le righe della sezione Serie A che rispettano la struttura prevista.
 8. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio d'errore e l'input manuale deve restare utilizzabile.
 
 ## Limiti e uso da smartphone

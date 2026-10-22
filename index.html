@@ -31,8 +31,12 @@
       <div id="pdfPanel" role="tabpanel" aria-labelledby="pdfTab" hidden>
         <label for="pdfUrl">URL del PDF</label>
         <input id="pdfUrl" type="url" value="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf">
-        <p class="help">Il browser può bloccare il download per CORS. In quel caso l'app non usa proxy e puoi inserire le quote manualmente.</p>
-        <button id="importPdf" class="button primary" type="button">Importa Quote da PDF</button>
+        <p class="help">Se il browser blocca il download automatico, scarica il PDF dal link Sisal e selezionalo qui sotto. Non vengono utilizzati proxy. Dal PDF vengono caricate solo le partite di Serie A.</p>
+        <label for="pdfFile">Carica un PDF già scaricato</label>
+        <input id="pdfFile" type="file" accept=".pdf,application/pdf" class="file-input">
+        <button id="loadPdfFile" class="button secondary" type="button">Scegli file PDF…</button>
+        <p id="pdfFileName" class="help" aria-live="polite">Nessun file selezionato.</p>
+        <button id="importPdf" class="button primary" type="button">Importa quote da URL</button>
       </div>
       <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
       <div id="matches" class="matches"></div>

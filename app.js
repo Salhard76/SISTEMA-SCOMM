@@ -140,14 +140,44 @@ function renderTable() {
   const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+async function loadPdfJs() {
+  if (globalThis.pdfjsLib) return globalThis.pdfjsLib;
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('CDN PDF.js non raggiungibile'));
+    document.head.appendChild(script);
+  });
+  if (!globalThis.pdfjsLib) throw new Error('PDF.js non è stato caricato correttamente.');
+  globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return globalThis.pdfjsLib;
+}
+function clearImportedMatches(message) {
+  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+  renderMatches(); saveState();
+  $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
+  $('summary').textContent = message;
+}
 function loadMatches(matches, source) {
   if (!matches.length) { status('Nessuna partita riconosciuta. Controlla il formato o il contenuto del PDF.', 'error'); return; }
+  const isPdfSource = /pdf/i.test(source);
   const totalFound = matches.length;
+  if (isPdfSource) {
+    const serieA = matches.filter(m => String(m.competizione || '').trim().toLocaleLowerCase('it-IT') === 'serie a');
+    if (!serieA.length) {
+      clearImportedMatches('Il PDF non contiene partite di Serie A riconosciute.');
+      status('PDF letto, ma non sono state trovate partite di Serie A. Le partite precedenti sono state rimosse; puoi caricare un altro PDF o inserire le quote manualmente.', 'error');
+      return;
+    }
+    matches = serieA;
+  }
+  const filteredFound = matches.length;
   matches = matches.slice(0, MAX_MATCHES);
   state.matches = matches.map(m => ({ ...m, tipo:'fissa', selezionati:m.esiti.slice(0,1).map(o => `${o.market}:${o.outcome}`) }));
   state.lastGenerated = false;
   renderMatches(); saveState();
-  status(`${matches.length} di ${totalFound} partite caricate da ${source}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
+  status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
   $('tableWrap').innerHTML = '<p class="empty-state">Premi “Genera sistema” per vedere le colonne.</p>';
 }
 function switchTab(which) {
@@ -173,16 +203,7 @@ $('importPdf').addEventListener('click', async () => {
   } catch { status('URL non valido. Inserisci un indirizzo http o https.', 'error'); return; }
   const button = $('importPdf'); button.disabled = true; button.textContent = 'Importazione…';
   try {
-    // Caricamento PDF.js via CDN: è opzionale e l'app continua a funzionare manualmente se manca.
-    if (!globalThis.pdfjsLib) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        script.onload = resolve; script.onerror = () => reject(new Error('CDN PDF.js non raggiungibile'));
-        document.head.appendChild(script);
-      });
-      globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
+    await loadPdfJs();
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const buffer = await response.arrayBuffer();
@@ -192,13 +213,45 @@ $('importPdf').addEventListener('click', async () => {
       renderMatches(); saveState();
       $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
       $('summary').textContent = 'Nessuna partita riconosciuta nel PDF.';
-      status('PDF letto, ma non sono state riconosciute righe con quote 1X2 nelle quattro competizioni richieste. Le partite precedenti sono state rimosse per evitare confusione. Puoi inserire le quote manualmente nella sezione 1.', 'error');
-    } else loadMatches(matches, 'PDF (solo Serie A, Serie B, Champions League, Europa League)');
+      status('PDF letto, ma non sono state riconosciute righe valide di Serie A con tutte le 21 quote previste. Le partite precedenti sono state rimosse per evitare confusione. Puoi inserire le quote manualmente nella sezione 1.', 'error');
+    } else loadMatches(matches, 'PDF da URL');
   } catch (error) {
     console.warn('Importazione PDF non riuscita:', error);
-    status('Impossibile scaricare il PDF da questo browser. Prova a incollare le quote manualmente nella sezione 1.', 'error');
+    status('Impossibile scaricare il PDF da questo browser (possibile blocco CORS). Scarica il file sul dispositivo e usa “Scegli file PDF…”.', 'error');
   } finally { button.disabled = false; button.textContent = 'Importa Quote da PDF'; }
 });
+$('loadPdfFile').addEventListener('click', () => $('pdfFile').click());
+$('pdfFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  $('pdfFileName').textContent = file.name;
+  const button = $('loadPdfFile');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Elaborazione…';
+  status('Lettura del PDF locale in corso…');
+  try {
+    if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      throw new Error('Il file selezionato non sembra essere un PDF.');
+    }
+    await loadPdfJs();
+    const matches = await parseSisalPdf(await file.arrayBuffer());
+    if (!matches.length) {
+      clearImportedMatches('Nessuna partita riconosciuta nel PDF.');
+      status('PDF letto, ma non sono state riconosciute partite con quote 1X2 nelle sezioni supportate.', 'error');
+    } else {
+      loadMatches(matches, 'file PDF locale');
+    }
+  } catch (error) {
+    console.error('Errore durante la lettura del PDF locale:', error);
+    status(error?.message || 'Errore durante la lettura del PDF. Verifica che sia valido e non protetto da password.', 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+    event.target.value = '';
+  }
+});
+
 $('matches').addEventListener('change', event => {
   const target = event.target;
   const card = target.closest('.match-card');
