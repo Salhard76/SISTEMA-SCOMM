@@ -1,5 +1,11 @@
 # Sistema Scommesse Builder
 
+## Novità versione 5 — mobile e stampa
+- **Samsung Galaxy A27 5G**: pagina senza scorrimento orizzontale generale; il solo foglio quote resta scorrevole in orizzontale. I risultati si leggono in schede verticali con etichette per ciascun valore.
+- **Stampa colonne uniforme**: forza A4 orizzontale anche tramite una regola `@page` globale durante la stampa, oltre al layout nominato; A4 verticale per il riepilogo integrale.
+- **32 combinazioni per foglio**: stampa separa esplicitamente le colonne in pagine da massimo 32 righe. Le combinazioni dalla 33ª continuano nel foglio successivo; fino a 1.024 combinazioni saranno al massimo 32 fogli.
+- **Controlli**: layout mobile verificato a 320, 360, 384, 412 e 600 px CSS; PDF di prova con 70 combinazioni produce 3 fogli (32 + 32 + 6), e il riepilogo integrale di 10 partite entra in un A4 verticale. Il test fisico su Samsung e stampante resta necessario per confermare le opzioni native del sistema di stampa Android.
+
 ## Novità versione 3
 - **Foglio quote**: dopo ogni tocco lo scorrimento orizzontale e il focus restano dove sono (prima tornavano a sinistra); colonne squadra più strette su smartphone, così si vedono più quote.
 - **Partite caricate vs selezionate**: si possono caricare fino a 30 partite (`MAX_LOADED_MATCHES` in `js/config.js`), ma selezionarne al massimo 10. Prima un PDF con più di 10 partite di Serie A ne perdeva in silenzio alcune. Per tornare al vecchio comportamento imposta `MAX_LOADED_MATCHES = MAX_MATCHES`.
@@ -43,13 +49,14 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 4. Imposta un filtro dinamico su un esito presente nelle doppie e controlla che il contatore e la tabella si aggiornino. Gli esiti fissi sono esclusi dal catalogo perché presenti in tutte le colonne.
 5. Crea quattro doppie selezionando Over 2.5 e Under 2.5 in ognuna; imposta “Over 2.5 · Max = 3” e verifica che restino le colonne con non più di tre Over.
 6. Esporta CSV e aprilo con un foglio di calcolo: devono esserci intestazioni e celle correttamente quotate.
-7. Usa “Stampa colonne”: mostra tutte le combinazioni sviluppate; quelle considerate dai filtri restano normali, quelle escluse hanno sfondo grigio. Le fisse sono in grassetto e, a destra, compaiono soltanto quota totale e vincita netta. Il layout usa A4 orizzontale e deve contenere 32 colonne in non più di 2 pagine; da 33 colonne in poi può continuare su altre pagine. “Stampa sistema integrale” deve stare in un solo A4 verticale.
+7. Usa “Stampa colonne”: mostra tutte le combinazioni sviluppate; quelle considerate dai filtri restano normali, quelle escluse hanno sfondo grigio. Le fisse sono in grassetto e, a destra, compaiono soltanto quota totale e vincita netta. Il layout usa A4 orizzontale: esattamente 32 combinazioni per foglio; dalla 33ª combinazione si passa al foglio successivo. Fino a 1.024 combinazioni sono quindi suddivise automaticamente in un massimo di 32 fogli. “Stampa sistema integrale” è impaginata in A4 verticale e va controllata con il numero di partite selezionate.
 8. Prova l'URL Sisal: se CORS lo consente, il parser importa esclusivamente le righe della sezione Serie A che rispettano la struttura prevista.
 9. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio che indirizza al download locale, mentre input manuale e selezione file restano disponibili.
-10. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
+10. Prova la stampa con 33 combinazioni: il primo foglio deve contenere 32 righe e il secondo una sola; con 1.024 combinazioni devono risultare 32 fogli.
+11. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
 
 ## Limiti e uso da smartphone
-L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, griglia a due colonne quando lo spazio lo consente e tabella risultati scorrevole in orizzontale. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
+L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, campi e pulsanti adattivi, risultati in schede verticali senza scorrimento orizzontale dell’intera pagina. Solo il foglio quote mantiene lo scorrimento orizzontale, indipendentemente dalla larghezza dello schermo. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.
 
 ## Stima Bonus Multipla Sisal
 L'interfaccia include una stima facoltativa del Bonus Multipla. La stima considera eventi con quota almeno 1,25 e applica un fattore composto del 4% dal quinto evento idoneo, con limite indicativo del 177%. Le FAQ Sisal descrivono, ad esempio, circa +8% per 6 eventi e +12% per 7 eventi idonei. Questa è una simulazione informativa: non certifica che il bonus venga riconosciuto alle singole colonne di un sistema. Controllare sempre il bonus effettivamente mostrato da Sisal sul biglietto prima di confermare. Fonte: https://www.sisal.it/scommesse-matchpoint/faq

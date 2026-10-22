@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=v4-20261022';
-import { generateSystem } from './js/generator.js?v=v4-20261022';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=v4-20261022';
-import { formatEuro, formatQuota } from './js/calculator.js?v=v4-20261022';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=v4-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=v4-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=v4-20261022';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=v4-20261022';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=v4-20261022';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=v4-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=mobile-print-20261022';
+import { generateSystem } from './js/generator.js?v=mobile-print-20261022';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=mobile-print-20261022';
+import { formatEuro, formatQuota } from './js/calculator.js?v=mobile-print-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=mobile-print-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=mobile-print-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=mobile-print-20261022';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=mobile-print-20261022';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=mobile-print-20261022';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=mobile-print-20261022';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -541,7 +541,7 @@ function renderTable() {
     ? ` Stima probabilità che almeno una colonna vinca: ${(Math.min(hit, 1) * 100).toLocaleString('it-IT', { maximumFractionDigits: 1 })}% · ritorno atteso (senza bonus) ${(expected * 100).toLocaleString('it-IT', { maximumFractionDigits: 0 })}% della puntata totale${approx ? ' · per alcune quote il mercato non è completo: aggio non rimosso, stima ottimistica' : ''}. Stime con partite indipendenti.`
     : ' Probabilità complessiva non calcolata: la Doppia Chance rende le colonne non mutuamente esclusive.';
   $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.${probLine}`;
-  const rows = cols.map((c, i) => `<tr><td>${c.id}</td><td>${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num">${formatQuota(c.quotaTotale)}</td><td class="num">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num">${formatEuro(returns[i])}</td><td class="num">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
+  const rows = cols.map((c, i) => `<tr><td data-label="Colonna n.">${c.id}</td><td data-label="Esiti selezionati">${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num" data-label="Quota totale">${formatQuota(c.quotaTotale)}</td><td class="num" data-label="Prob. implicita (con aggio)">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Prob. stimata (senza aggio)">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Bonus stimato">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num" data-label="Ritorno lordo stimato">${formatEuro(returns[i])}</td><td class="num" data-label="Profitto teorico stimato">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
   $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
 }
@@ -555,20 +555,32 @@ function buildPrintTable() {
   const totalStake = includedCount * stake;
   const activeEvents = readEvents();
   const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
-  const printRows = classifiedColumns.map(({ column, included }) => {
-    const rowClass = included ? 'considered-column' : 'excluded-column';
-    const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
-    const eventCells = activeEvents.map(event => {
-      const label = escapeHtml(selectedByEvent.get(event.id)?.label || '—');
-      return `<td>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
-    }).join('');
-    const netWin = column.quotaTotale * stake - stake;
-    return `<tr class="${rowClass}" data-column-id="${escapeHtml(column.id)}"><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
-  }).join('');
   const legend = excludedCount
     ? `<p class="print-legend"><strong>Fondo grigio = colonne escluse dai filtri e non considerate nel sistema ridotto.</strong> Colonne considerate: ${includedCount}; escluse: ${excludedCount}.</p>`
     : `<p class="print-legend">Nessuna colonna esclusa dai filtri. Tutte le ${includedCount} colonne sono considerate.</p>`;
-  $('printTableWrap').innerHTML = `<h1 class="print-title">Sistema Scommesse Builder — colonne</h1><p class="print-meta">Colonne sviluppate: ${allCols.length} · considerate dopo i filtri: ${includedCount} · escluse: ${excludedCount} · Puntata per colonna ${formatEuro(stake)} · Costo totale delle colonne considerate ${formatEuro(totalStake)}</p>${legend}<table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table><p class="print-footnote">Vincita netta calcolata come (quota totale × puntata per colonna) − puntata. Le righe grigie sono escluse dal costo del sistema ridotto. Non include eventuali bonus. Quote soggette a variazione.</p>`;
+  const pages = splitPrintRows(classifiedColumns, PRINT_COLUMNS_PER_PAGE);
+  const pageMarkup = pages.map((pageRows, pageIndex) => {
+    const firstId = pageRows[0]?.column.id ?? 0;
+    const lastId = pageRows.at(-1)?.column.id ?? 0;
+    const printRows = pageRows.map(({ column, included }) => {
+      const rowClass = included ? 'considered-column' : 'excluded-column';
+      const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
+      const eventCells = activeEvents.map(event => {
+        const label = escapeHtml(selectedByEvent.get(event.id)?.label || '—');
+        return `<td>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
+      }).join('');
+      const netWin = column.quotaTotale * stake - stake;
+      return `<tr class="${rowClass}" data-column-id="${escapeHtml(column.id)}"><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
+    }).join('');
+    return `<section class="print-page-table" data-print-page="${pageIndex + 1}" data-print-rows="${pageRows.length}">
+      <h1 class="print-title">Sistema Scommesse Builder — colonne</h1>
+      <p class="print-meta">Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · Puntata/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}</p>
+      ${pageIndex === 0 ? legend : ''}
+      <table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table>
+      ${pageIndex === pages.length - 1 ? '<p class="print-footnote">Vincita netta = (quota totale × puntata per colonna) − puntata. Le righe grigie sono escluse dal sistema ridotto. Non include eventuali bonus; quote soggette a variazione.</p>' : ''}
+    </section>`;
+  }).join('');
+  $('printTableWrap').innerHTML = pageMarkup;
 }
 
 // Ricalcola direttamente dai valori correnti dei filtri prima di esportare o stampare,

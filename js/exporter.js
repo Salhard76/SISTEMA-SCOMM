@@ -1,4 +1,14 @@
 /* Esportazioni leggibili in Excel e stampa. */
+export const PRINT_COLUMNS_PER_PAGE = 32;
+
+/** Divide le combinazioni per il layout di stampa: 32 colonne (righe) per foglio. */
+export function splitPrintRows(rows, pageSize = PRINT_COLUMNS_PER_PAGE) {
+  if (!Array.isArray(rows)) throw new TypeError('Le righe di stampa devono essere un array.');
+  if (!Number.isInteger(pageSize) || pageSize < 1) throw new RangeError('La dimensione della pagina deve essere un intero positivo.');
+  const pages = [];
+  for (let i = 0; i < rows.length; i += pageSize) pages.push(rows.slice(i, i + pageSize));
+  return pages;
+}
 function csvText(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
 // Numeri con virgola decimale e senza virgolette: Excel in italiano li legge come numeri
 // (con il punto decimale, o tra virgolette, restavano testo e le somme non funzionavano).
@@ -36,6 +46,13 @@ export function exportText(colonne, puntata) {
   download(lines.join('\n'), 'text/plain;charset=utf-8', 'sistema-scommesse-dettaglio.txt');
 }
 export function printWithMode(mode) {
+  const pageRule = document.getElementById?.('runtimePrintPageRule');
+  const previousPageRule = pageRule?.textContent ?? '';
+  // Regola @page globale oltre ai nomi pagina CSS: aiuta i browser mobile che
+  // non applicano sempre in modo uniforme i page name (landscape/portrait).
+  if (pageRule) pageRule.textContent = mode === 'table'
+    ? '@page { size: A4 landscape; margin: 5mm; }'
+    : '@page { size: A4 portrait; margin: 6mm; }';
   document.body.dataset.printMode = mode;
   let cleaned = false;
   let timeoutId = null;
@@ -43,6 +60,7 @@ export function printWithMode(mode) {
     if (cleaned) return;
     cleaned = true;
     delete document.body.dataset.printMode;
+    if (pageRule) pageRule.textContent = previousPageRule;
     window.removeEventListener('afterprint', clear);
     if (timeoutId !== null) window.clearTimeout(timeoutId);
   };

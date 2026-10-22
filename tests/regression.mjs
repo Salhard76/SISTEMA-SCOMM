@@ -3,7 +3,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
-import { printWithMode, buildCsv } from '../js/exporter.js';
+import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
@@ -53,6 +53,39 @@ test('Stampa: A4 integrale; colonne con sole quota totale e vincita netta', () =
   assert.match(css, /tbody tr\.excluded-column td\{background:#dedede!important/);
   assert.match(pageJs, /function refreshGeneratedColumnsNow\(\)/);
 });
+
+test('Stampa multipiattaforma: massimo 32 colonne sviluppate per ciascun foglio', () => {
+  assert.equal(PRINT_COLUMNS_PER_PAGE, 32);
+  const source = Array.from({ length: 1024 }, (_, i) => i + 1);
+  const pages = splitPrintRows(source);
+  assert.equal(pages.length, 32);
+  assert.ok(pages.every(page => page.length === 32));
+  assert.deepEqual(pages[0], Array.from({ length: 32 }, (_, i) => i + 1));
+  assert.deepEqual(pages.at(-1), Array.from({ length: 32 }, (_, i) => i + 993));
+  assert.equal(splitPrintRows(source.slice(0, 33)).length, 2);
+  assert.equal(splitPrintRows(source.slice(0, 33))[1].length, 1);
+  assert.deepEqual(splitPrintRows([]), []);
+  assert.throws(() => splitPrintRows(source, 0), /intero positivo/);
+  assert.match(pageJs, /splitPrintRows\(classifiedColumns, PRINT_COLUMNS_PER_PAGE\)/);
+  assert.match(pageJs, /data-print-rows=\"\$\{pageRows\.length\}\"/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /@page columns\{size:A4 landscape/);
+  assert.match(css, /body\[data-print-mode=\"table\"\] \.print-page-table\{[^}]*page-break-inside:avoid/);
+  assert.match(css, /body\[data-print-mode=\"table\"\] \.print-page-table:last-child\{break-after:auto/);
+  assert.match(css, /body\[data-print-mode=\"table\"\] main>\.panel:last-child\{display:block/);
+  assert.doesNotMatch(css, /body\[data-print-mode=\"table\"\] \.panel\{display:block/);
+});
+test('Mobile: la griglia quote resta scorrevole e la tabella risultati usa schede adattive', () => {
+  assert.match(pageJs, /data-label=\"Esiti selezionati\"/);
+  assert.match(pageJs, /data-label=\"Profitto teorico stimato\"/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.quote-sheet-scroll\{width:100%;max-width:100%;max-height:68vh;overflow:auto/);
+  assert.match(css, /\.results-table thead\{display:none\}/);
+  assert.match(css, /\.results-table td::before\{content:attr\(data-label\)/);
+  assert.match(css, /html,body\{max-width:100%;overflow-x:clip/);
+  assert.match(css, /body\[data-print-mode=\"integral\"\] \.integral-match\{break-inside:avoid/);
+});
+
 test('UI: gestione squadre compatta con finestra separata', () => {
   assert.match(pageHtml, /<dialog id="teamDialog"[^>]*aria-labelledby="teamDialogTitle"/);
   assert.match(pageHtml, /id="openTeamManager"[^>]*aria-haspopup="dialog"[^>]*aria-controls="teamDialog"/);
@@ -408,9 +441,10 @@ test('Stampa: il modo viene ripulito dopo afterprint o tramite fallback', () => 
   const previousDocument = globalThis.document;
   const previousWindow = globalThis.window;
   const dataset = {};
+  const pageRule = { textContent: '' };
   const handlers = new Map();
   const timers = [];
-  globalThis.document = { body: { dataset } };
+  globalThis.document = { body: { dataset }, getElementById: id => id === 'runtimePrintPageRule' ? pageRule : null };
   globalThis.window = {
     addEventListener: (name, handler) => handlers.set(name, handler),
     removeEventListener: name => handlers.delete(name),
@@ -421,12 +455,16 @@ test('Stampa: il modo viene ripulito dopo afterprint o tramite fallback', () => 
   try {
     printWithMode('table');
     assert.equal(dataset.printMode, 'table');
+    assert.match(pageRule.textContent, /A4 landscape/);
     handlers.get('afterprint')();
     assert.equal(dataset.printMode, undefined);
+    assert.equal(pageRule.textContent, '');
     printWithMode('integral');
     assert.equal(dataset.printMode, 'integral');
+    assert.match(pageRule.textContent, /A4 portrait/);
     timers.at(-1)();
     assert.equal(dataset.printMode, undefined);
+    assert.equal(pageRule.textContent, '');
   } finally {
     if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
     if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
