@@ -6,7 +6,7 @@ Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazion
 2. Apri **Settings → Pages**.
 3. Seleziona **Deploy from a branch**, branch `main`, cartella `/ (root)`.
 4. Salva e attendi la pubblicazione.
-5. Apri l'URL GitHub Pages assegnato al repository.
+5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**: l'icona usa la stessa mascotte La(a)rfleeze già impiegata in Cammafà.
 6. Su Android, apri il collegamento **Apri / scarica PDF ufficiale Sisal**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
 7. In alternativa, incolla i dati nella sezione manuale, che resta sempre visibile; l'importazione diretta da URL è solo un tentativo facoltativo perché CORS può impedirla.
 8. Seleziona gli esiti, imposta i filtri e premi **Genera sistema**.
@@ -53,3 +53,15 @@ I filtri sugli esiti sono generati in base a quelli selezionati nelle partite. P
 ## Test di regressione automatici
 
 Con Node.js 20 o successivo, esegui `npm test`. I test verificano formati manuali comuni e casi limite, i limiti strutturali del generatore, i conteggi dei filtri Over/Under e l'arresto del parsing ai confini della sezione Serie A (inclusa Serie D).
+
+
+## Backup e ripristino JSON
+Nel pannello “Backup e ripristino delle impostazioni” si può esportare un file JSON contenente partite caricate, esiti selezionati, filtri dinamici, puntata, filtri quote, preferenza Bonus Multipla, tema, testo manuale, elenco squadre e stato della conferma stagionale. Per spostare i dati su un altro dispositivo, scarica il file, apri l'app sul nuovo dispositivo e seleziona “Ripristina da JSON”. Il ripristino chiede conferma e sostituisce le impostazioni locali; il file viene controllato prima di applicare i dati e viene rifiutato se ha un formato sconosciuto, contiene quote non valide o supera il limite di 10 partite. Le colonne generate non vengono conservate: dopo il ripristino premi “Genera sistema” per ricalcolarle con le impostazioni importate. Conserva i backup in una posizione privata: possono contenere quote e combinazioni personali.
+
+## Installazione e controllo prima della generazione
+Il pulsante “Installa app” usa il prompt nativo se il browser lo mette a disposizione; altrimenti mostra le istruzioni per Chrome Android o Safari iOS. La disponibilità dipende dal browser e dalle condizioni di installazione del sito. Il progetto non registra un service worker e non promette funzionamento offline.
+Prima di generare, un controllo visuale rileva selezioni non collegate alle quote, quote selezionate non valide, doppie incomplete, partite duplicate e, per l'importazione PDF di Serie A, squadre non presenti nell'elenco personalizzato. Se il PDF contiene righe scartate o duplicate, mostra un avviso e chiede conferma prima di continuare; controlla la diagnostica PDF se l'avviso riguarda righe scartate.
+
+## Icona e installazione su Android
+
+Il progetto include `manifest.webmanifest`, icone PNG da 192 e 512 px, una variante maskable, favicon e icona Apple Touch. L'immagine principale riutilizza esattamente l'icona La(a)rfleeze già presente nel pacchetto Cammafà. La pubblicazione deve mantenere tutti questi file nella radice del sito accanto a `index.html`. Non viene registrato un service worker: l'app non promette funzionamento offline e gli aggiornamenti pubblicati non restano bloccati da una cache offline dedicata.

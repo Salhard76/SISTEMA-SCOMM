@@ -1,0 +1,32 @@
+{
+  "id": "./",
+  "name": "Sistema Scommesse Builder",
+  "short_name": "Scommesse",
+  "description": "Importa le quote Sisal, crea sistemi fino a 10 partite, applica filtri dinamici ed esporta le colonne.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "lang": "it-IT",
+  "background_color": "#f0f5f7",
+  "theme_color": "#075d4a",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

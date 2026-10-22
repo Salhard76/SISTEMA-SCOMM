@@ -4,17 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#075d4a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Scommesse">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=backup-pwa-validation-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=backup-pwa-validation-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=backup-pwa-validation-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=backup-pwa-validation-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=auditfix-20261022-inter-yfix-v3">
-  <script type="module" src="app.js?v=auditfix-20261022-inter-yfix-v3"></script>
+  <link rel="stylesheet" href="style.css?v=backup-pwa-validation-20261022">
+  <script type="module" src="app.js?v=backup-pwa-validation-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">SB</span><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
-    <div class="header-actions"><button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema">☾ Tema</button><a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=backup-pwa-validation-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="header-actions"><button id="installApp" class="button secondary" type="button" aria-describedby="installStatus">＋ Installa app</button><button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema">☾ Tema</button><a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
   </header>
 
+  <p id="installStatus" class="sr-only" aria-live="polite">L’app può essere installata quando il browser lo consente.</p>
+  <details id="installHelp" class="install-help input-method-card" hidden>
+    <summary>Come installare l’app</summary>
+    <p class="help"><strong>Android / Chrome:</strong> apri il menu ⋮ e scegli “Installa app” oppure “Aggiungi a schermata Home”. Se il comando non compare, apri il sito in Chrome, non in un browser incorporato, e verifica che la pagina sia HTTPS.</p>
+    <p class="help"><strong>iPhone / Safari:</strong> tocca Condividi e poi “Aggiungi alla schermata Home”.</p>
+    <p class="help">Il pulsante automatico viene mostrato dal browser solo quando l’installazione è disponibile. L’app resta utilizzabile dal browser anche senza installarla.</p>
+  </details>
   <main class="container">
     <section class="panel" aria-labelledby="input-title">
       <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="input-title">Inserisci le quote</h2></div><span class="step-number">01</span></div>
@@ -62,6 +77,13 @@
         <div><strong>Controllo annuale squadre</strong><p class="help">È il periodo del controllo stagionale: verifica promosse, retrocesse e nomi ufficiali. Il promemoria resta finché non confermi.</p></div>
         <div class="button-row"><button id="openTeamManager" class="button primary" type="button">Aggiorna elenco</button><button id="confirmTeamList" class="button secondary" type="button">Elenco verificato</button></div>
       </div>
+      <details id="backupPanel" class="input-method-card backup-panel">
+        <summary>Backup e ripristino delle impostazioni</summary>
+        <p class="help">Salva un file JSON con le partite, le selezioni, i filtri, la puntata, il tema e l’elenco squadre personalizzato. Conserva il file fuori dal telefono per poterlo ripristinare in seguito o su un altro dispositivo.</p>
+        <div class="button-row backup-actions"><button id="exportBackup" class="button primary" type="button">Esporta backup JSON</button><button id="selectBackup" class="button secondary" type="button">Ripristina da JSON</button></div>
+        <input id="backupFile" type="file" accept="application/json,.json" hidden>
+        <p id="backupStatus" class="help" aria-live="polite">L’importazione sostituirà le impostazioni locali dopo una tua conferma.</p>
+      </details>
       <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
       <div id="matches" class="matches"></div>
     </section>
@@ -93,6 +115,7 @@
         <label class="bonus-toggle"><input id="sisalBonus" type="checkbox" checked> Stima Bonus Multipla Sisal</label>
         <p class="help">Stima indicativa: considera eventi con quota almeno 1,25 e applica un incremento composto del 4% per ogni evento idoneo dal quinto, con tetto indicativo del 177%. Il bonus ufficiale può dipendere dal tipo di biglietto e dalle condizioni Sisal; verifica sempre il valore mostrato nel carrello.</p>
       </div>
+      <div id="preflightReport" class="preflight-report" aria-live="polite" hidden></div>
       <div id="summary" class="summary" aria-live="polite">Seleziona almeno una partita e i relativi esiti.</div>
       <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printIntegral" class="button secondary" type="button" disabled>Stampa sistema integrale</button><button id="printTable" class="button secondary" type="button" disabled>Stampa colonne</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>
       <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div>

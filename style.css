@@ -141,3 +141,24 @@ input,textarea,select{border-radius:10px;border-color:var(--border)}textarea{min
 @media(max-width:600px){.generate-controls .system-limit{grid-column:1/-1}}
 
 .pdf-diagnostics{margin:.6rem 0;padding:.65rem .75rem;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.pdf-diagnostics summary{font-weight:750;cursor:pointer}.pdf-diagnostics p{overflow-wrap:anywhere;margin:.55rem 0 0}
+
+/* Branding app: icona La(a)rfleeze condivisa con Cammafà. */
+.brand-logo{display:block;object-fit:cover;background:transparent;border:1px solid rgba(255,255,255,.24);border-radius:12px;}
+
+/* Backup/ripristino, controllo preventivo e installazione PWA */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.backup-panel summary,.install-help summary{font-weight:800;cursor:pointer;padding:.2rem 0 .45rem}
+.backup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.backup-actions .button{width:100%;min-width:0}
+.preflight-report{padding:.7rem .85rem;border:1px solid var(--border);border-radius:10px;margin:.7rem 0;font-size:.88rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.preflight-report.success{background:var(--accent);color:var(--green-dark);border-color:#b8dfcf}
+.preflight-report.warning{background:#fff7df;color:#765000;border-color:#e4c56e}
+.preflight-report.error{background:#fff0f0;color:#a42121;border-color:#e5a5a5}
+:root[data-theme="dark"] .preflight-report.warning{background:#3e341d;color:#ffe5a0;border-color:#8c7332}
+:root[data-theme="dark"] .preflight-report.error{background:#3d2225;color:#ffb8bd;border-color:#93434b}
+@media(max-width:600px){.backup-actions{grid-template-columns:1fr}.backup-actions .button{width:100%}.preflight-report{font-size:.8rem;padding:.6rem}}
+
+/* L’icona mascotte deve restare pulita: niente simbolo decorativo sovrapposto. */
+.brand-logo::before{content:none!important;display:none!important}
+.install-help{width:min(1180px,calc(100% - 2rem));margin:1rem auto 0}
+@media(max-width:600px){.install-help{width:calc(100% - 1rem);margin:.5rem auto 0}.site-header .brand-logo{object-fit:contain}}

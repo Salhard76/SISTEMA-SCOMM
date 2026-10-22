@@ -1,19 +1,20 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=auditfix-20261022-inter-yfix-v3';
-import { generateSystem } from './js/generator.js?v=auditfix-20261022-inter-yfix-v3';
-import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=auditfix-20261022-inter-yfix-v3';
-import { formatEuro, formatQuota } from './js/calculator.js?v=auditfix-20261022-inter-yfix-v3';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=auditfix-20261022-inter-yfix-v3';
-import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=auditfix-20261022-inter-yfix-v3';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=backup-pwa-validation-20261022';
+import { generateSystem } from './js/generator.js?v=backup-pwa-validation-20261022';
+import { applyFilters, describeOutcome, maxEsitiAlti, maxOutcomeCount, minOutcomeCount, probabilitaMin } from './js/filters.js?v=backup-pwa-validation-20261022';
+import { formatEuro, formatQuota } from './js/calculator.js?v=backup-pwa-validation-20261022';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=backup-pwa-validation-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella } from './js/exporter.js?v=backup-pwa-validation-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=backup-pwa-validation-20261022';
 
 const $ = id => document.getElementById(id);
-const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {} };
+const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
 let lastDynamicFilterSignature = null;
 const debouncedUpdateCounter = () => {
   clearTimeout(filterUpdateTimeout);
-  filterUpdateTimeout = setTimeout(updateCounter, 300);
+  filterUpdateTimeout = setTimeout(() => { saveState(); updateCounter(); }, 300);
 };
 
 function status(message, type = '') {
@@ -126,9 +127,24 @@ $('confirmTeamList').addEventListener('click', () => {
   $('teamListStatus').textContent = `Elenco confermato per la stagione ${currentSeason()}. Puoi comunque modificarlo in qualsiasi momento.`;
   status(`Elenco squadre confermato per ${currentSeason()}.`, 'success');
 });
+function getReviewedSeason() {
+  try { return localStorage.getItem(reviewedSeasonKey) || ''; } catch { return ''; }
+}
 function saveState() {
   try {
-    localStorage.setItem(savedKey, JSON.stringify({ manualInput: $('manualInput').value, stake: $('stake').value, matches: state.matches, outcomeFilterLimits: state.outcomeFilterLimits, theme: document.documentElement.dataset.theme || 'light' }));
+    localStorage.setItem(savedKey, JSON.stringify({
+      manualInput: $('manualInput').value,
+      stake: $('stake').value,
+      matches: state.matches,
+      outcomeFilterLimits: state.outcomeFilterLimits,
+      theme: document.documentElement.dataset.theme || 'light',
+      highOdds: $('highOdds').value,
+      maxHigh: $('maxHigh').value,
+      minProb: $('minProb').value,
+      sisalBonus: $('sisalBonus').checked,
+      source: state.source,
+      pdfDiagnostics: state.pdfDiagnostics
+    }));
   } catch { /* localStorage può essere disabilitato: l'app continua a funzionare. */ }
 }
 function restoreState() {
@@ -137,11 +153,100 @@ function restoreState() {
     if (!data) return;
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
+    $('highOdds').value = data.highOdds || '3.00';
+    $('maxHigh').value = data.maxHigh ?? '';
+    $('minProb').value = data.minProb ?? '';
+    $('sisalBonus').checked = data.sisalBonus !== false;
     if (Array.isArray(data.matches)) state.matches = data.matches.slice(0, MAX_MATCHES).map(m => ({ ...m, selezionati: (m.selezionati || []).slice(0, MAX_CHOICES_PER_MATCH) }));
     if (data.outcomeFilterLimits && typeof data.outcomeFilterLimits === 'object') state.outcomeFilterLimits = data.outcomeFilterLimits;
+    state.source = typeof data.source === 'string' ? data.source : '';
+    state.pdfDiagnostics = data.pdfDiagnostics && typeof data.pdfDiagnostics === 'object' ? data.pdfDiagnostics : null;
     document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
   } catch { /* Stato salvato corrotto: partenza pulita. */ }
 }
+function getBackupData() {
+  return {
+    manualInput: $('manualInput').value,
+    stake: $('stake').value,
+    matches: state.matches,
+    outcomeFilterLimits: state.outcomeFilterLimits,
+    theme: document.documentElement.dataset.theme || 'light',
+    highOdds: $('highOdds').value,
+    maxHigh: $('maxHigh').value,
+    minProb: $('minProb').value,
+    sisalBonus: $('sisalBonus').checked,
+    teamLines: getSerieATeamLines(),
+    reviewedSeason: getReviewedSeason(),
+    source: state.source,
+    pdfDiagnostics: state.pdfDiagnostics
+  };
+}
+function downloadBackup() {
+  const payload = createBackupPayload(getBackupData());
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `sistema-scommesse-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  $('backupStatus').textContent = 'Backup creato. Conserva il file JSON in una cartella sicura o trasferiscilo sul dispositivo dove vuoi ripristinare i dati.';
+}
+function applyBackup(data) {
+  lastDynamicFilterSignature = null;
+  // L’elenco viene scritto prima di modificare lo stato dell’interfaccia: se lo storage non è disponibile,
+  // il ripristino si interrompe senza sostituire le partite correnti.
+  if (Array.isArray(data.teamLines)) setSerieATeamLines(data.teamLines);
+  state.matches = data.matches;
+  state.rawColumns = [];
+  state.finalColumns = [];
+  state.lastGenerated = false;
+  state.outcomeFilterLimits = data.outcomeFilterLimits;
+  state.source = data.source || '';
+  state.pdfDiagnostics = data.pdfDiagnostics || null;
+  $('manualInput').value = data.manualInput;
+  $('stake').value = data.stake;
+  $('highOdds').value = data.highOdds;
+  $('maxHigh').value = data.maxHigh;
+  $('minProb').value = data.minProb;
+  $('sisalBonus').checked = data.sisalBonus;
+  document.documentElement.dataset.theme = data.theme;
+  try {
+    if (data.reviewedSeason) localStorage.setItem(reviewedSeasonKey, data.reviewedSeason);
+    else localStorage.removeItem(reviewedSeasonKey);
+  } catch { /* Il promemoria resta comunque visibile nella sessione corrente. */ }
+  renderTeamListEditor();
+  updateSeasonReminder();
+  showPdfDiagnostics(state.pdfDiagnostics, state.matches.length);
+  renderMatches();
+  $('tableWrap').innerHTML = '<p class="empty-state">Backup ripristinato. Premi “Genera sistema” per ricostruire le colonne.</p>';
+  $('summary').textContent = 'Dati ripristinati. Il sistema va rigenerato per aggiornare conteggi e colonne.';
+  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
+  saveState();
+  $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate. Premi “Genera sistema” per ricalcolare le colonne.`;
+  status('Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', 'success');
+}
+$('exportBackup').addEventListener('click', () => {
+  try { downloadBackup(); }
+  catch (error) { $('backupStatus').textContent = error?.message || 'Non è stato possibile creare il backup JSON.'; }
+});
+$('selectBackup').addEventListener('click', () => $('backupFile').click());
+$('backupFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > 2 * 1024 * 1024) throw new Error('Il file supera 2 MB: seleziona un backup JSON valido.');
+    const payload = JSON.parse(await file.text());
+    const data = validateBackupPayload(payload);
+    if (!confirm(`Ripristinare il backup del ${String(payload.exportedAt || 'data non specificata').slice(0, 10)}? Partite, filtri, preferenze ed elenco squadre locali saranno sostituiti dai dati del file.`)) return;
+    applyBackup(data);
+  } catch (error) {
+    $('backupStatus').textContent = error?.message || 'Backup non valido: nessun dato è stato importato.';
+    status($('backupStatus').textContent, 'error');
+  } finally { event.target.value = ''; }
+});
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -244,6 +349,71 @@ function collectFilters() {
   }
   return fs;
 }
+function getPreflightReport() {
+  const errors = [];
+  const warnings = [];
+  const stake = Number($('stake').value);
+  if (!Number.isFinite(stake) || stake < 0.01) errors.push('La puntata per colonna deve essere almeno 0,01 €.');
+  const active = state.matches.filter(match => (match.selezionati || []).length > 0);
+  if (!active.length) errors.push('Seleziona almeno un esito prima di generare.');
+  if (active.length > MAX_MATCHES) errors.push(`Sono selezionate ${active.length} partite: il limite è ${MAX_MATCHES}.`);
+
+  const seen = new Map();
+  const allowedSerieATeams = new Set(getSerieATeamLines().flatMap(line => String(line).split('|').map(part => normalizeTeamName(part.trim())).filter(Boolean)));
+  for (const match of active) {
+    const fixture = `${normalizeTeamName(match.casa)}|${normalizeTeamName(match.trasferta)}|${String(match.data || '').trim()}|${String(match.ora || '').trim()}`;
+    if (!normalizeTeamName(match.casa) || !normalizeTeamName(match.trasferta)) errors.push(`Partita senza entrambi i nomi delle squadre (ID ${match.id || 'sconosciuto'}).`);
+    else if (normalizeTeamName(match.casa) === normalizeTeamName(match.trasferta)) errors.push(`La partita ${match.casa} – ${match.trasferta} riporta la stessa squadra due volte.`);
+    if (seen.has(fixture)) errors.push(`Partita duplicata: ${match.casa} – ${match.trasferta}${match.data ? ` del ${match.data}` : ''}. Rimuovi il doppione prima di generare.`);
+    else seen.set(fixture, match.id);
+
+    const selectedKeys = match.selezionati || [];
+    const selected = selectedKeys.map(key => match.esiti?.find(outcome => `${outcome.market}:${outcome.outcome}` === key)).filter(Boolean);
+    if (selected.length !== selectedKeys.length) errors.push(`La partita ${match.casa} – ${match.trasferta} contiene una selezione non collegata a una quota.`);
+    if (!selected.length) errors.push(`La partita ${match.casa} – ${match.trasferta} non ha esiti validi selezionati.`);
+    if (match.tipo === 'doppia' && selected.length !== 2) errors.push(`La doppia ${match.casa} – ${match.trasferta} deve avere esattamente due esiti selezionati.`);
+    if (match.tipo === 'fissa' && selected.length > 1) errors.push(`La fissa ${match.casa} – ${match.trasferta} deve avere un solo esito.`);
+    for (const outcome of selected) {
+      if (!Number.isFinite(Number(outcome.quota)) || Number(outcome.quota) <= 1) errors.push(`Quota mancante o non valida: ${match.casa} – ${match.trasferta}, ${outcome.label || outcome.outcome}.`);
+    }
+    if (/pdf/i.test(state.source) && String(match.competizione || '').toLocaleLowerCase('it-IT') === 'serie a') {
+      for (const team of [match.casa, match.trasferta]) {
+        if (!allowedSerieATeams.has(normalizeTeamName(team))) errors.push(`Squadra non presente nell’elenco Serie A salvato: “${team}”. Controlla l’anagrafica prima di generare.`);
+      }
+    }
+  }
+
+  if (state.pdfDiagnostics) {
+    const rejects = Number(state.pdfDiagnostics.rejectedRows ?? state.pdfDiagnostics.rejects?.length ?? 0);
+    const duplicates = Number(state.pdfDiagnostics.duplicateRows || 0);
+    if (rejects > 0) {
+      const teamRejects = (state.pdfDiagnostics.rejects || []).filter(row => row.reason === 'teams').length;
+      const quoteRejects = (state.pdfDiagnostics.rejects || []).filter(row => row.reason === 'quote_count' || row.reason === 'invalid_odds').length;
+      let detail = '';
+      if (teamRejects) detail += ` ${teamRejects} righe potrebbero avere nomi squadra non riconosciuti.`;
+      if (quoteRejects) detail += ` ${quoteRejects} righe hanno quote mancanti o non valide.`;
+      warnings.push(`Il PDF ha scartato ${rejects} righe.${detail} Apri la diagnostica PDF per controllare prima di proseguire.`);
+    }
+    if (duplicates > 0) warnings.push(`Il parser ha rimosso ${duplicates} riga/e duplicate dal PDF.`);
+  }
+  return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
+}
+function renderPreflightReport() {
+  const root = $('preflightReport');
+  if (!state.matches.length) { root.hidden = true; root.textContent = ''; root.className = 'preflight-report'; return; }
+  const report = getPreflightReport();
+  const lines = [];
+  if (report.errors.length) lines.push(`DA CORREGGERE: ${report.errors.join(' ')}`);
+  if (report.warnings.length) lines.push(`AVVISI: ${report.warnings.join(' ')}`);
+  if (!lines.length) {
+    const activeCount = state.matches.filter(match => (match.selezionati || []).length > 0).length;
+    lines.push(activeCount ? `Controllo preliminare superato: ${activeCount} partite attive, nomi e quote selezionate validi.` : 'Seleziona gli esiti delle partite che vuoi includere.');
+  }
+  root.textContent = lines.join(' ');
+  root.className = `preflight-report ${report.errors.length ? 'error' : report.warnings.length ? 'warning' : 'success'}`;
+  root.hidden = false;
+}
+
 function buildBase() {
   const events = readEvents();
   if (!events.length) return { error: 'Seleziona almeno un esito in una o più partite.' };
@@ -267,10 +437,17 @@ function buildBase() {
   return { result };
 }
 function updateCounter() {
+  renderPreflightReport();
   const built = buildBase();
   if (built.error) {
     $('beforeCount').textContent = '—'; $('afterCount').textContent = '—';
-    if (state.lastGenerated) $('summary').textContent = built.error;
+    if (state.lastGenerated) {
+      // Non lasciare esportabile la tabella precedente dopo una modifica invalida.
+      state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+      $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
+      $('tableWrap').innerHTML = '<p class="empty-state">Sistema non aggiornato: correggi le selezioni prima di generare di nuovo.</p>';
+      $('summary').textContent = built.error;
+    }
     return;
   }
   const result = built.result;
@@ -383,7 +560,7 @@ function showPdfDiagnostics(diagnostics, importedCount = 0) {
 }
 
 function clearImportedMatches(message) {
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null;
   renderMatches(); saveState();
   $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
   $('summary').textContent = message;
@@ -406,6 +583,8 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
   matches = matches.slice(0, MAX_MATCHES);
   if (isPdfSource) showPdfDiagnostics(diagnostics, matches.length);
   state.matches = matches.map(m => ({ ...m, tipo:'fissa', selezionati:m.esiti.slice(0,1).map(o => `${o.market}:${o.outcome}`) }));
+  state.source = source;
+  state.pdfDiagnostics = isPdfSource ? (diagnostics || null) : null;
   state.lastGenerated = false;
   renderMatches(); saveState();
   status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Limite app: ${MAX_MATCHES} partite; massimo ${MAX_CHOICES_PER_MATCH} scelte per partita. Seleziona gli esiti.`, 'success');
@@ -436,7 +615,7 @@ $('importPdf').addEventListener('click', async () => {
     const matches = await parseSisalPdf(buffer);
     if (!matches.length) {
       showPdfDiagnostics(matches.diagnostics, 0);
-      state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+      state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = matches.diagnostics || null;
       renderMatches(); saveState();
       $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
       $('summary').textContent = 'Nessuna partita riconosciuta nel PDF.';
@@ -540,8 +719,20 @@ $('stake').addEventListener('change', () => {
   clearTimeout(stakeSaveTimeout);
   saveState();
 });
-$('sisalBonus').addEventListener('change', () => { if (state.lastGenerated) renderTable(); });
+$('sisalBonus').addEventListener('change', () => { saveState(); if (state.lastGenerated) renderTable(); });
 $('generate').addEventListener('click', () => {
+  const report = getPreflightReport();
+  if (report.errors.length) {
+    renderPreflightReport();
+    status(report.errors.join(' '), 'error');
+    $('preflightReport').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (report.warnings.length && !confirm(`Prima di generare controlla questi avvisi:
+
+${report.warnings.join('\n\n')}
+
+Vuoi procedere comunque?`)) return;
   const built = buildBase();
   if (built.error) { status(built.error, 'error'); return; }
   state.rawColumns = built.result.colonne;
@@ -567,9 +758,68 @@ $('themeToggle').addEventListener('click', () => {
   document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   saveState();
 });
+let deferredInstallPrompt = null;
+const installButton = $('installApp');
+function isStandaloneApp() {
+  return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
+}
+function showInstallHelp(message = 'Il browser non ha proposto l’installazione automatica. Segui le istruzioni qui sotto.') {
+  const help = $('installHelp');
+  help.hidden = false;
+  help.open = true;
+  $('installStatus').textContent = message;
+  help.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+if (isStandaloneApp()) {
+  installButton.textContent = 'App installata';
+  installButton.disabled = true;
+  $('installStatus').textContent = 'Sistema Scommesse Builder è già installata.';
+}
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  installButton.hidden = false;
+  installButton.textContent = '＋ Installa app';
+  $('installStatus').textContent = 'Installazione dell’app disponibile.';
+});
+installButton.addEventListener('click', async () => {
+  if (isStandaloneApp()) {
+    $('installStatus').textContent = 'L’app è già aperta in modalità installata.';
+    return;
+  }
+  if (!deferredInstallPrompt) {
+    showInstallHelp();
+    return;
+  }
+  const promptEvent = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  try {
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice;
+    if (choice?.outcome === 'accepted') {
+      $('installStatus').textContent = 'Richiesta di installazione accettata. Completa il passaggio richiesto dal browser.';
+      installButton.textContent = 'Installazione richiesta';
+    } else {
+      $('installStatus').textContent = 'Installazione annullata. Puoi riprovare dal menu del browser.';
+      showInstallHelp('Hai annullato l’installazione automatica; le istruzioni manuali sono qui sotto.');
+    }
+  } catch (error) {
+    console.warn('Prompt installazione PWA non riuscito:', error);
+    showInstallHelp();
+  }
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  installButton.textContent = 'App installata';
+  installButton.disabled = true;
+  $('installStatus').textContent = 'Sistema Scommesse Builder è stata installata.';
+  $('installHelp').hidden = true;
+  $('installHelp').open = false;
+});
+
 $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null;
   $('manualInput').value = ''; $('stake').value = '0.10';
   for (const id of ['maxHigh','minProb']) $(id).value = '';
   state.outcomeFilterLimits = {};

@@ -3,6 +3,7 @@ import { parseManualInput, parseSisalPdf } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, describeOutcome, maxOutcomeCount } from '../js/filters.js';
 import { printWithMode } from '../js/exporter.js';
+import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
 
 function test(name, fn) {
   try {
@@ -13,6 +14,52 @@ function test(name, fn) {
     throw error;
   }
 }
+
+const backupExample = createBackupPayload({
+  manualInput: 'Milan - Roma; 2.10; 3.20; 3.60',
+  stake: '0.10',
+  highOdds: '3.00',
+  maxHigh: '',
+  minProb: '',
+  sisalBonus: true,
+  theme: 'dark',
+  matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
+  outcomeFilterLimits: { 'Esito finale|1': { min: '', max: '2' } },
+  teamLines: ['Squadra Uno', 'Squadra Due'],
+  reviewedSeason: '2026/27',
+  source: 'input manuale',
+  pdfDiagnostics: null
+}, '2026-10-22T08:00:00.000Z');
+test('Backup JSON: esporta e valida impostazioni, partite e lista squadre', () => {
+  const restored = validateBackupPayload(backupExample);
+  assert.equal(backupExample.format, BACKUP_FORMAT);
+  assert.equal(restored.matches.length, 1);
+  assert.equal(restored.matches[0].casa, 'Milan');
+  assert.deepEqual(restored.matches[0].selezionati, ['1X2:1']);
+  assert.deepEqual(restored.teamLines, ['Squadra Uno', 'Squadra Due']);
+  assert.equal(restored.theme, 'dark');
+  assert.equal(restored.sisalBonus, true);
+});
+test('Backup JSON: rifiuta più di 10 partite', () => {
+  const invalid = structuredClone(backupExample);
+  invalid.data.matches = Array.from({ length: 11 }, () => ({}));
+  assert.throws(() => validateBackupPayload(invalid), /limite è 10/);
+});
+test('Backup JSON: rifiuta quote mancanti o non valide', () => {
+  const invalid = structuredClone(backupExample);
+  invalid.data.matches[0].esiti[0].quota = 1;
+  assert.throws(() => validateBackupPayload(invalid), /quota o descrizione non valida/);
+});
+test('Backup JSON: rifiuta una fissa con due selezioni incoerenti', () => {
+  const invalid = structuredClone(backupExample);
+  invalid.data.matches[0].selezionati = ['1X2:1', '1X2:X'];
+  assert.throws(() => validateBackupPayload(invalid), /una fissa può contenere una sola selezione/);
+});
+test('Backup JSON: rifiuta un formato/versione sconosciuti', () => {
+  const invalid = structuredClone(backupExample);
+  invalid.format = 'altro';
+  assert.throws(() => validateBackupPayload(invalid), /non è un backup/);
+});
 
 const manual = parseManualInput('Milan-Roma; 2.10; 3.20; 3.60');
 test('Parser manuale: trattino senza spazi', () => {
