@@ -77,25 +77,41 @@ test('Stampa multipiattaforma: massimo 32 colonne per foglio e nessun salto dopo
   assert.doesNotMatch(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:page!important/);
   assert.doesNotMatch(css, /body\[data-print-mode="table"\]\{page:columns/);
   assert.equal((css.match(/@page/g) || []).length, 1, 'una sola dichiarazione @page nel CSS; l’orientamento viene aggiornato dal print mode');
-  assert.match(css, /body\[data-print-mode="table"\] main>\.panel:last-child\{display:block/);
-  assert.doesNotMatch(css, /body\[data-print-mode="table"\] \.panel\{display:block/);
+  assert.match(css, /body\[data-print-mode="table"\] main\.container\{display:none!important/);
+  assert.match(css, /body\[data-print-mode="table"\] #printTableWrap\{display:block!important/);
+  assert.match(css, /height:5mm!important/);
+  assert.match(css, /white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important/);
+  assert.match(pageJs, /class=\"print-column-header\"/);
+  assert.ok(pageHtml.indexOf('</main>') < pageHtml.indexOf('id="printTableWrap"'), 'contenitore di stampa isolato fuori da main');
 });
 
-test('Foglio quote: squadre congelate a sinistra; metadati scorrono dietro le squadre e le intestazioni restano in alto', () => {
+test('Foglio quote: squadre congelate a sinistra; metadati sono in fondo e intestazioni restano in alto', () => {
   assert.match(pageJs, /class="quote-team team1-cell"/);
   assert.match(pageJs, /class="quote-team team2-cell"/);
-  assert.match(pageJs, /class="quote-fixed-head quote-team-head team1-head"/);
-  assert.match(pageJs, /class="quote-fixed-head quote-team-head team2-head"/);
-  assert.ok(pageJs.indexOf('quote-team team1-cell') < pageJs.indexOf('quote-date quote-meta-col'), 'le squadre precedono i metadati nella griglia');
-  assert.ok(pageJs.indexOf('team1-head') < pageJs.indexOf('quote-date-head'), 'le intestazioni squadra precedono data/ora');
+  assert.match(pageJs, /class="quote-team quote-fixed-head quote-team-head team1-head"/);
+  assert.match(pageJs, /class="quote-team quote-fixed-head quote-team-head team2-head"/);
+  assert.ok(pageJs.indexOf('quote-team team1-cell') < pageJs.indexOf('\$\{quoteCells\}'), 'le squadre sono bloccate prima delle quote');
+  assert.ok(pageJs.indexOf('\$\{quoteCells\}') < pageJs.indexOf('quote-date quote-meta-col'), 'i metadati sono collocati dopo tutti i mercati e non spuntano tra squadre e quote');
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /\.quote-sheet thead th\{position:sticky;top:0/);
   assert.match(css, /\.quote-sheet tbody \.team1-cell,\.quote-sheet thead \.team1-head\{left:0\}/);
   assert.match(css, /\.quote-sheet tbody \.team2-cell,\.quote-sheet thead \.team2-head\{left:var\(--quote-team-width\)\}/);
   assert.match(css, /@media\(max-width:800px\)\{\.quote-sheet-scroll/);
   assert.match(css, /\.quote-sheet \.quote-code\{display:none\}/);
-  assert.match(css, /\.quote-sheet-scroll\{--quote-team-width:118px/);
+  assert.match(css, /\.quote-sheet-scroll\{--quote-team-width:118px;--quote-group-head-height:42px/);
   assert.match(css, /@media\(max-width:420px\)\{\.quote-sheet-scroll\{--quote-team-width:80px/);
+});
+
+test('Griglia quote: le intestazioni non si sovrappongono e le righe sono compatte senza barra verticale visibile', () => {
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /--quote-group-head-height:42px;--quote-head-total-height:69px/);
+  assert.match(css, /scroll-snap-type:y proximity;scroll-padding-top:var\(--quote-head-total-height\)/);
+  assert.match(css, /\.quote-sheet tbody tr\{scroll-snap-align:start\}/);
+  assert.match(css, /top:var\(--quote-group-head-height\);z-index:19;height:27px/);
+  assert.match(css, /\.quote-sheet thead\{position:relative;z-index:100\}\n\.quote-sheet tbody\{position:relative;z-index:1\}/);
+  assert.match(css, /quote-sheet-scroll::-webkit-scrollbar:vertical\{width:0/);
+  assert.match(css, /\.quote-sheet \.quote-cell\{padding:0;min-width:48px;width:48px;height:34px/);
+  assert.match(css, /\.odds-cell\{display:flex;align-items:center;justify-content:center;width:100%;min-width:48px;height:32px/);
 });
 
 test('Calcolo riepilogo economico: quote e profitto netti min/max corretti e input malformati ignorati', () => {
@@ -125,7 +141,7 @@ test('UI: griglia quote al posto dei controlli Fissa/Doppia', () => {
   assert.match(pageJs, /data-outcome-key/);
   assert.doesNotMatch(pageJs, /name=\"tipo-\$\{mi\}\"/);
   assert.doesNotMatch(pageJs, /class=\"match-controls\"/);
-  assert.match(pageHtml, /quote-sheet-intro/);
+  assert.doesNotMatch(pageHtml, /quote-sheet-intro|Il foglio quote riprende l’ordine del bollettino/);
   assert.match(pageHtml, /handicap numerico H è informativo/);
 });
 test('Selezione quote: un esito è fissa, due dello stesso mercato sono doppia', () => {

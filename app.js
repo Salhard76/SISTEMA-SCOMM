@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sticky-print-v6-20261022';
-import { generateSystem } from './js/generator.js?v=sticky-print-v6-20261022';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sticky-print-v6-20261022';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sticky-print-v6-20261022';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sticky-print-v6-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sticky-print-v6-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sticky-print-v6-20261022';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sticky-print-v6-20261022';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sticky-print-v6-20261022';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sticky-print-v6-20261022';
+import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sticky-fixed-print-v7-20261022';
+import { generateSystem } from './js/generator.js?v=sticky-fixed-print-v7-20261022';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sticky-fixed-print-v7-20261022';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sticky-fixed-print-v7-20261022';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sticky-fixed-print-v7-20261022';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sticky-fixed-print-v7-20261022';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sticky-fixed-print-v7-20261022';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sticky-fixed-print-v7-20261022';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sticky-fixed-print-v7-20261022';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sticky-fixed-print-v7-20261022';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -344,18 +344,19 @@ function renderMatches() {
       return `<td class="quote-cell"><button type="button" class="odds-cell ${className}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
-    return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''}" data-match="${escapeHtml(match.id)}">
+    const metaTitle = [match.data, match.ora, match.palinsesto || match.pal, match.avvenimento || match.avv].filter(Boolean).join(' · ');
+    return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''}" data-match="${escapeHtml(match.id)}" title="${escapeHtml(metaTitle)}">
       <th scope="row" class="quote-team team1-cell">${escapeHtml(match.casa)}</th>
       <td class="quote-team team2-cell">${escapeHtml(match.trasferta)}</td>
+      ${quoteCells}
       <td class="quote-date quote-meta-col">${escapeHtml(match.data || '—')}<button type="button" class="remove-match" data-id="${escapeHtml(match.id)}" aria-label="Rimuovi ${escapeHtml(matchName)}" title="Rimuovi partita">×</button></td>
       <td class="quote-time quote-meta-col">${escapeHtml(match.ora || '—')}</td>
       <td class="quote-code quote-meta-col">${escapeHtml(match.palinsesto || match.pal || '—')}</td>
       <td class="quote-code quote-meta-col">${escapeHtml(match.avvenimento || match.avv || '—')}</td>
-      ${quoteCells}
     </tr>`;
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
-    <th class="quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th><th class="quote-fixed-head quote-meta-col quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-code" rowspan="2">Avv.</th>${groupHeaders}
+    <th class="quote-team quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-team quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}<th class="quote-fixed-head quote-meta-col quote-meta-head quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Avv.</th>
     </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote dello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
@@ -555,7 +556,7 @@ function buildPrintTable() {
   const stake = Math.max(0, Number($('stake').value) || 0);
   const totalStake = includedCount * stake;
   const activeEvents = readEvents();
-  const printHeaders = activeEvents.map((event, index) => `<th>${index + 1}. ${escapeHtml(event.nome)}</th>`).join('');
+  const printHeaders = activeEvents.map((event, index) => `<th title="${escapeHtml(event.nome)}"><span class="print-column-header">${index + 1}. ${escapeHtml(event.nome)}</span></th>`).join('');
   const printMethodNote = '<span class="print-method-note">Vincita netta = quota × puntata − puntata; bonus esclusi.</span>';
   const legend = excludedCount
     ? `<p class="print-legend"><strong>Fondo grigio = colonne escluse dai filtri e non considerate nel sistema ridotto.</strong> Colonne considerate: ${includedCount}; escluse: ${excludedCount}.${printMethodNote}</p>`

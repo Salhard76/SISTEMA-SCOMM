@@ -8,19 +8,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sticky-print-v6-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=sticky-print-v6-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=sticky-print-v6-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=sticky-print-v6-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sticky-fixed-print-v7-20261022">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=sticky-fixed-print-v7-20261022">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=sticky-fixed-print-v7-20261022">
+  <link rel="manifest" href="./manifest.webmanifest?v=sticky-fixed-print-v7-20261022">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=sticky-print-v6-20261022">
+  <link rel="stylesheet" href="style.css?v=sticky-fixed-print-v7-20261022">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=sticky-print-v6-20261022"></script>
+  <script type="module" src="app.js?v=sticky-fixed-print-v7-20261022"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sticky-print-v6-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sticky-fixed-print-v7-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -120,7 +120,7 @@
         <p id="backupStatus" class="help" aria-live="polite">L’importazione sostituirà le impostazioni locali dopo una tua conferma.</p>
       </details>
       <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
-      <p class="help quote-sheet-intro">Il foglio quote riprende l’ordine del bollettino. Tocca una quota (verde = fissa) o due quote dello stesso mercato (ambra = doppia); la tipologia viene rilevata automaticamente. Il valore H è informativo e non selezionabile.</p><div id="matches" class="matches"></div>
+      <div id="matches" class="matches"></div>
     </section>
 
     <section class="panel" aria-labelledby="filters-title">
@@ -148,10 +148,11 @@
       <div id="preflightReport" class="preflight-report" aria-live="polite" hidden></div>
       <div id="summary" class="summary" aria-live="polite">Seleziona le quote dal foglio e genera il sistema.</div>
       <div class="table-actions"><button id="exportCsv" class="button secondary" type="button" disabled>Esporta CSV</button><button id="printIntegral" class="button secondary" type="button" disabled>Stampa sistema integrale</button><button id="printTable" class="button secondary" type="button" disabled>Stampa colonne</button><button id="exportText" class="button secondary" type="button" disabled>Esporta testo</button></div>
-      <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div><div id="printTableWrap" class="print-table-wrap"></div>
+      <div id="tableWrap" class="table-wrap"><p class="empty-state">La tabella del sistema apparirà qui.</p></div>
     </section>
   </main>
 
+  <div id="printTableWrap" class="print-table-wrap" aria-hidden="true"></div>
   <section id="integralPrint" class="integral-print" aria-hidden="true"></section>
   <footer class="site-footer"><p>Strumento di calcolo a scopo informativo. Le quote possono cambiare; non garantisce vincite. Scommetti responsabilmente e nel rispetto della normativa applicabile.</p></footer>
 </body>
