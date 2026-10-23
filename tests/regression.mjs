@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { parseManualInput, parseSisalPdf } from '../js/parser.js';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAM_SEASON } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
@@ -41,6 +41,53 @@ test('Info: firma stilizzata SalHard accessibile e autore dichiarato', () => {
   assert.match(pageHtml, /<title id="salhardSignatureTitle">Firma stilizzata dell'autore SalHard<\/title>/);
   assert.match(pageHtml, /<text x="8" y="43">SalHard<\/text>/);
   assert.match(readFileSync(new URL('../style.css', import.meta.url), 'utf8'), /\.info-author-signature text[^{]*\{[^}]*cursive/s);
+});
+
+test('Release v12: icone solo bianco/nero, marchio SB outline nelle stampe e versione aggiornata', () => {
+  for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
+    assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
+  }
+  assert.match(pageHtml, /icon-192\.png\?v=sb-outline-v12-20261023/);
+  assert.match(pageJs, /class=\"integral-brand-mark\" role=\"img\" aria-label=\"Logo SB\"[^>]*><svg/);
+  assert.match(pageJs, /class=\"print-sb-mark\" viewBox=\"0 0 64 64\"/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /integral-brand-mark svg/);
+  assert.match(css, /print-sb-mark/);
+});
+
+test('PWA: il service worker mette in cache la shell, serve l’HTML offline e supporta percorsi relativi', () => {
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.match(pageJs, /navigator\.serviceWorker\.register\(serviceWorkerUrl\.href\)/);
+  assert.match(sw, /cache\.addAll\(CORE_ASSETS/);
+  assert.match(sw, /request\.mode === 'navigate'/);
+  assert.match(sw, /networkFirst\(request, '\.\/index\.html'\)/);
+  assert.match(sw, /if \(url\.origin !== scopeUrl\.origin/);
+  assert.match(sw, /vendor\/pdfjs\/pdf\.worker\.min\.js/);
+  assert.match(sw, /data\/serie-a-teams\.json/);
+  const assetsBlock = sw.match(/const CORE_ASSETS = \[([\s\S]*?)\];/)?.[1];
+  assert.ok(assetsBlock, 'il service worker deve dichiarare la shell da precaricare');
+  const version = sw.match(/const RELEASE = '([^']+)'/)?.[1];
+  const precachePaths = [...assetsBlock.matchAll(/`([^`]+)`|'([^']+)'/g)].map(match => (match[1] || match[2]).replace('${VERSION_QUERY}', `?v=${version}`).split('?')[0]);
+  assert.ok(precachePaths.length >= 20, 'la shell deve includere moduli, PDF.js, dati e icone');
+  for (const path of precachePaths) {
+    const relative = path.replace(/^\.\//, '');
+    const target = relative ? new URL(`../${relative}`, import.meta.url) : new URL('../', import.meta.url);
+    assert.ok(existsSync(target), `risorsa del precache non trovata: ${path}`);
+  }
+});
+
+test('Stagione squadre: la stagione del catalogo base è centralizzata e coerente con il JSON incluso', () => {
+  const data = JSON.parse(readFileSync(new URL('../data/serie-a-teams.json', import.meta.url), 'utf8'));
+  assert.equal(data.season, SERIE_A_TEAM_SEASON);
+  assert.equal(data.teams.length, 20);
+  assert.match(pageJs, /Ripristina base ufficiale \$\{SERIE_A_TEAM_SEASON\}/);
+  assert.match(pageJs, /Ripristinato l’elenco base incluso \(\$\{SERIE_A_TEAM_SEASON\}\)/);
+  assert.doesNotMatch(pageHtml, /Ripristina base ufficiale 2026\/27/);
+  assert.doesNotMatch(pageJs, /stagione 2026\/27/);
+});
+
+test('Il collegamento GitHub generico è stato rimosso perché non identifica il repository del progetto', () => {
+  assert.doesNotMatch(pageHtml, /href=\"https:\/\/github\.com\//);
 });
 
 test('UI: pulsante Info accessibile collegato alla finestra guida', () => {
@@ -648,6 +695,21 @@ test('Probabilità senza aggio: la Doppia Chance somma a 2 ed esclude la mutua e
   assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [{ market: '1X2', outcome: '1' }, { market: 'Under/Over 2.5', outcome: 'Over 2.5' }] }]), false, 'quote selezionate su mercati diversi possono vincere contemporaneamente');
   assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [{ market: '1X2', outcome: '1' }, { market: '1X2', outcome: 'X' }] }, { tipo: 'fissa', esiti: [dc.esiti[0]] }]), true);
 });
+test('Probabilità senza aggio: quote non valide o esiti duplicati non producono stime numeriche', () => {
+  const invalidOdds = fairProbabilities({ esiti: [
+    { market: '1X2', outcome: '1', quota: 1 },
+    { market: '1X2', outcome: 'X', quota: 3.1 },
+    { market: '1X2', outcome: '2', quota: 4.2 }
+  ] });
+  assert.equal(invalidOdds.size, 0);
+  const duplicates = fairProbabilities({ esiti: [
+    { market: '1X2', outcome: '1', quota: 2.1 },
+    { market: '1X2', outcome: '1', quota: 3.1 },
+    { market: '1X2', outcome: '2', quota: 4.2 }
+  ] });
+  assert.equal(duplicates.size, 0);
+});
+
 test('Generatore: la probabilità di colonna è il prodotto delle probabilità delle gambe', () => {
   const ev = [
     { id: 'a', nome: 'A', tipo: 'doppia', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2, prob: 0.4 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3, prob: 0.3 }] },
@@ -678,6 +740,15 @@ test('CSV: esporta modalità di puntata e riepilogo del budget effettivo', () =>
   assert.match(csv, /Importo effettivo per colonna \(€\).*3,33/);
   assert.match(csv, /Spesa effettiva \(€\).*9,99/);
   assert.match(csv, /Residuo non utilizzato \(€\).*0,01/);
+});
+
+test('CSV: testo che sembra una formula viene neutralizzato per fogli elettronici', () => {
+  const csv = buildCsv([{ id: 1, quotaTotale: 2, prob: 0.5, esiti: [
+    { partita: '=HYPERLINK(\"https://example.invalid\")', label: '1', quota: 2 },
+    { partita: '+SUM(A1:A2)', label: 'X', quota: 3 }
+  ] }]);
+  assert.match(csv, /\"'=HYPERLINK/);
+  assert.match(csv, /\"'\+SUM/);
 });
 
 test('CSV: numeri con virgola decimale e senza virgolette (leggibili da Excel in italiano)', () => {
@@ -716,9 +787,11 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
 });
 test('Release: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
-  const files = ['../index.html', '../app.js', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
+  const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /sb-outline-v12-20261023/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

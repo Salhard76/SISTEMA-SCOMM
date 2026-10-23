@@ -9,7 +9,12 @@ export function splitPrintRows(rows, pageSize = PRINT_COLUMNS_PER_PAGE) {
   for (let i = 0; i < rows.length; i += pageSize) pages.push(rows.slice(i, i + pageSize));
   return pages;
 }
-function csvText(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
+function csvText(value) {
+  const text = String(value ?? '');
+  // Excel/LibreOffice may evaluate formula-like text even when the CSV cell is quoted.
+  const safe = /^[\u0000-\u0020\uFEFF]*[=+\-@]/u.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
 // Numeri con virgola decimale e senza virgolette: Excel in italiano li legge come numeri
 // (con il punto decimale, o tra virgolette, restavano testo e le somme non funzionavano).
 function csvNum(value, decimals = 2) {

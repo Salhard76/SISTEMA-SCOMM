@@ -1,5 +1,5 @@
 /* Probabilità stimate "senza aggio" e mutua esclusività delle colonne. */
-import { selectionMarketKey } from './selection.js';
+import { selectionMarketKey } from './selection.js?v=sb-outline-v12-20261023';
 
 // Numero di esiti che formano una partizione completa del mercato (le probabilità sommano a 1,
 // tranne la Doppia Chance dove sommano a 2).
@@ -22,10 +22,18 @@ export function fairProbabilities(match) {
   const result = new Map();
   for (const [key, outcomes] of groups) {
     if (PARTITION_SIZE[key] !== outcomes.length) continue;
+    const outcomeKeys = outcomes.map(o => String(o.outcome ?? '').trim().toLocaleLowerCase('it-IT'));
+    if (outcomeKeys.some(value => !value) || new Set(outcomeKeys).size !== outcomeKeys.length) continue;
+    const odds = outcomes.map(o => Number(o.quota));
+    if (odds.some(odd => !Number.isFinite(odd) || odd <= 1)) continue;
     const mass = key === 'doppia chance' ? 2 : 1;
-    const sum = outcomes.reduce((total, o) => total + 1 / Number(o.quota), 0) / mass;
-    if (!(sum >= 0.99)) continue;
-    for (const o of outcomes) result.set(`${o.market}:${o.outcome}`, (1 / Number(o.quota)) / sum);
+    const impliedSum = odds.reduce((total, odd) => total + 1 / odd, 0);
+    const normalizationSum = impliedSum / mass;
+    // Mercati incompleti o quote con overround anomalo: non applicare una correzione fuorviante.
+    if (!Number.isFinite(normalizationSum) || normalizationSum < 0.99) continue;
+    const probabilities = odds.map(odd => (1 / odd) / normalizationSum);
+    if (probabilities.some(probability => !Number.isFinite(probability) || probability <= 0 || probability > 1)) continue;
+    outcomes.forEach((outcome, index) => result.set(`${outcome.market}:${outcome.outcome}`, probabilities[index]));
   }
   return result;
 }

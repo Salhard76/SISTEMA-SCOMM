@@ -8,24 +8,23 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=salhard-signature-v11-20261023">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=salhard-signature-v11-20261023">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=salhard-signature-v11-20261023">
-  <link rel="manifest" href="./manifest.webmanifest?v=salhard-signature-v11-20261023">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sb-outline-v12-20261023">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=sb-outline-v12-20261023">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=sb-outline-v12-20261023">
+  <link rel="manifest" href="./manifest.webmanifest?v=sb-outline-v12-20261023">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <meta name="author" content="SalHard">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=salhard-signature-v11-20261023">
+  <link rel="stylesheet" href="style.css?v=sb-outline-v12-20261023">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=salhard-signature-v11-20261023"></script>
+  <script type="module" src="app.js?v=sb-outline-v12-20261023"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=salhard-signature-v11-20261023" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sb-outline-v12-20261023" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
-      <a class="button secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       <button id="infoButton" class="button secondary info-button" type="button" aria-label="Apri informazioni e guida rapida" aria-haspopup="dialog" aria-controls="infoDialog" title="Info">ⓘ<span class="info-button-label"> Info</span></button>
     </div>
   </header>
@@ -74,7 +73,7 @@
         <label for="teamListInput">Elenco modificabile — una squadra per riga</label>
         <textarea id="teamListInput" rows="7" spellcheck="false" autocapitalize="words" placeholder="Atalanta&#10;Bologna&#10;Virtus Entella"></textarea>
         <p class="help">Scrivi il nome completo come appare sul bollettino: ad esempio <code>Virtus Entella</code> o <code>Juve Stabia</code> restano una singola squadra. Per un'abbreviazione, usa <code>Nome completo | alias</code>. Non inserire qui squadre di Serie B se vuoi importare soltanto la Serie A.</p>
-        <div class="button-row"><button id="saveTeamList" class="button primary" type="button">Salva elenco</button><button id="resetTeamList" class="button secondary" type="button">Ripristina base ufficiale 2026/27</button></div>
+        <div class="button-row"><button id="saveTeamList" class="button primary" type="button">Salva elenco</button><button id="resetTeamList" class="button secondary" type="button">Ripristina base ufficiale</button></div>
         <p id="teamListStatus" class="help" aria-live="polite">Le modifiche vengono salvate su questo dispositivo.</p>
       </div>
     </div>

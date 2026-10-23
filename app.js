@@ -1,14 +1,14 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=salhard-signature-v11-20261023';
-import { generateSystem } from './js/generator.js?v=salhard-signature-v11-20261023';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=salhard-signature-v11-20261023';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=salhard-signature-v11-20261023';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=salhard-signature-v11-20261023';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=salhard-signature-v11-20261023';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=salhard-signature-v11-20261023';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=salhard-signature-v11-20261023';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=salhard-signature-v11-20261023';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=salhard-signature-v11-20261023';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=salhard-signature-v11-20261023';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-outline-v12-20261023';
+import { generateSystem } from './js/generator.js?v=sb-outline-v12-20261023';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-outline-v12-20261023';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-outline-v12-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-outline-v12-20261023';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-outline-v12-20261023';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sb-outline-v12-20261023';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-outline-v12-20261023';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-outline-v12-20261023';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-outline-v12-20261023';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-outline-v12-20261023';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -70,6 +70,8 @@ function currentSeason() {
 }
 function renderTeamListEditor() {
   $('teamListInput').value = getSerieATeamLines().join('\n');
+  const resetButton = $('resetTeamList');
+  if (resetButton) resetButton.textContent = `Ripristina base ufficiale ${SERIE_A_TEAM_SEASON}`;
 }
 function normalizeTeamName(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('it-IT').replace(/[^a-z0-9]/g, '');
@@ -148,7 +150,7 @@ $('resetTeamList').addEventListener('click', () => {
   resetSerieATeamLines();
   renderTeamListEditor();
   updateSeasonReminder();
-  $('teamListStatus').textContent = `Ripristinato l’elenco base della stagione 2026/27: ${SERIE_A_TEAMS.length} squadre.`;
+  $('teamListStatus').textContent = `Ripristinato l’elenco base incluso (${SERIE_A_TEAM_SEASON}): ${SERIE_A_TEAMS.length} squadre. Se è iniziata una nuova stagione, verifica il promemoria stagionale e aggiorna l’elenco prima di importare il PDF.`;
   status('Ripristinato l’elenco squadre base. Le modifiche si applicheranno alla prossima importazione PDF.', 'success');
 });
 const teamDialog = $('teamDialog');
@@ -644,7 +646,7 @@ function buildPrintTable() {
     }).join('');
     return `<section class="print-page-table" data-print-page="${pageIndex + 1}" data-print-rows="${pageRows.length}">
       <h1 class="print-title">Sistema Scommesse Builder — colonne</h1>
-      <p class="print-meta">Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · ${getStakeModeLabel(allocation)}/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}${allocation.mode === 'total-budget' ? ` · Budget ${formatEuro(allocation.inputBudget)} · Residuo ${formatEuro(allocation.residue)}` : ''}</p>
+      <p class="print-meta"><svg class="print-sb-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="currentColor" stroke-width="4"/><text x="32" y="39" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="none" stroke="currentColor" stroke-width="1.4" paint-order="stroke">SB</text></svg><span>Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · ${getStakeModeLabel(allocation)}/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}${allocation.mode === 'total-budget' ? ` · Budget ${formatEuro(allocation.inputBudget)} · Residuo ${formatEuro(allocation.residue)}` : ''}</span></p>
       ${pageIndex === 0 ? legend : ''}
       <table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table>
     </section>`;
@@ -975,7 +977,7 @@ $('printIntegral').addEventListener('click', () => {
     return `<article class="integral-match ${kind}"><span class="integral-number">${i+1}</span><div class="integral-match-content"><div class="integral-match-heading"><strong>${escapeHtml(m.casa)} <span class="integral-versus">–</span> ${escapeHtml(m.trasferta)}</strong><em>${selected.length === 2 ? 'DOPPIA' : 'FISSA'}</em></div><small>${escapeHtml(meta || 'Dettagli partita non disponibili')}</small><div class="integral-outcomes">${outcomeChips}</div></div></article>`;
   }).join('');
   const sameRanges = state.rawColumns.length === state.finalColumns.length;
-  integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark">SB</div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
+  integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark" role="img" aria-label="Logo SB"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="currentColor" stroke-width="3.5"/><text x="32" y="39" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="none" stroke="currentColor" stroke-width="1.2" paint-order="stroke">SB</text></svg></div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
     <div class="integral-section-title"><h2>Riepilogo delle selezioni</h2><span>Quota singola per esito</span></div>
     <div class="integral-match-list">${choices}</div>
     <section class="integral-economics"><div class="integral-section-title"><h2>Quote e vincite minime / massime</h2><span>Importi teorici · senza bonus</span></div><div class="integral-ranges">${integralRangeMarkup('Sistema integrale', fullRange, false, fullRangeEmptyMessage)}${integralRangeMarkup('Sistema ridotto', reducedRange, true)}</div>${sameRanges ? '<p class="integral-range-caption">In assenza di colonne escluse, il sistema integrale e quello ridotto coincidono.</p>' : '<p class="integral-range-caption">Il sistema integrale include tutte le combinazioni sviluppate; il ridotto considera soltanto quelle che superano i filtri.</p>'}</section>
@@ -1116,4 +1118,14 @@ updateSeasonReminder();
 if (state.matches.length) {
   renderMatches();
   status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} selezioni non più valide sono state corrette: controlla il foglio quote.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
+}
+
+// Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
+  serviceWorkerUrl.searchParams.set('v', 'sb-outline-v12-20261023');
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(serviceWorkerUrl.href)
+      .catch(error => console.warn('Cache offline non disponibile; l’app continua a funzionare online:', error));
+  }, { once: true });
 }

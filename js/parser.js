@@ -4,7 +4,10 @@
    Se una riga non è riconoscibile con certezza, viene scartata: mai quote inventate. */
 const NUM = String.raw`(?:\d{1,3}(?:[.,]\d{1,3})?)`;
 
-// Elenco iniziale Serie A 2026/27; l'utente può aggiornarlo dall'interfaccia.
+// Stagione del catalogo iniziale incluso nel pacchetto. Non è un aggiornamento live.
+export const SERIE_A_TEAM_SEASON = '2026/27';
+
+// Elenco iniziale della stagione SERIE_A_TEAM_SEASON; l'utente può aggiornarlo dall'interfaccia.
 // Una riga = una squadra. Sono ammessi alias opzionali dopo il carattere |,
 // per esempio: Nome ufficiale | abbreviazione usata nel bollettino.
 export const SERIE_A_TEAMS = [
