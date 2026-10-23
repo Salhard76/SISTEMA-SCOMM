@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SISAL_DEFAULT_URL, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sticky-fixed-print-v7-20261022';
-import { generateSystem } from './js/generator.js?v=sticky-fixed-print-v7-20261022';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sticky-fixed-print-v7-20261022';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sticky-fixed-print-v7-20261022';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sticky-fixed-print-v7-20261022';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sticky-fixed-print-v7-20261022';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sticky-fixed-print-v7-20261022';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sticky-fixed-print-v7-20261022';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sticky-fixed-print-v7-20261022';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sticky-fixed-print-v7-20261022';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=android-print-v8-20261023';
+import { generateSystem } from './js/generator.js?v=android-print-v8-20261023';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=android-print-v8-20261023';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=android-print-v8-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=android-print-v8-20261023';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=android-print-v8-20261023';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=android-print-v8-20261023';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=android-print-v8-20261023';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=android-print-v8-20261023';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=android-print-v8-20261023';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -718,34 +718,6 @@ $('parseManual').addEventListener('click', () => {
   loadMatches(matches, 'input manuale');
 });
 $('clearInput').addEventListener('click', () => { $('manualInput').value = ''; status('Testo svuotato.'); saveState(); });
-$('importPdf').addEventListener('click', async () => {
-  showPdfDiagnostics(null);
-  const url = $('pdfUrl').value.trim();
-  if (!url) { status('Inserisci un URL PDF valido.', 'error'); return; }
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('Protocollo non valido');
-  } catch { status('URL non valido. Inserisci un indirizzo http o https.', 'error'); return; }
-  const button = $('importPdf'); button.disabled = true; button.textContent = 'Importazione…';
-  try {
-    await loadPdfJs();
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const buffer = await response.arrayBuffer();
-    const matches = await parseSisalPdf(buffer);
-    if (!matches.length) {
-      showPdfDiagnostics(matches.diagnostics, 0);
-      state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = matches.diagnostics || null;
-      renderMatches(); saveState();
-      $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
-      $('summary').textContent = 'Nessuna partita riconosciuta nel PDF.';
-      status('PDF letto, ma non sono state riconosciute righe valide di Serie A con tutte le 21 quote previste. Le partite precedenti sono state rimosse per evitare confusione. Puoi inserire le quote manualmente nella sezione 1.', 'error');
-    } else loadMatches(matches, 'PDF da URL', matches.diagnostics);
-  } catch (error) {
-    console.warn('Importazione PDF non riuscita:', error);
-    status('Importazione diretta non riuscita (il sito Sisal può bloccare CORS). Tocca “Apri / scarica PDF ufficiale Sisal”, scegli “Scarica”, poi seleziona il PDF salvato qui sotto.', 'error');
-  } finally { button.disabled = false; button.textContent = 'Tenta importazione diretta'; }
-});
 $('pdfFile').addEventListener('change', async event => {
   showPdfDiagnostics(null);
   const file = event.target.files?.[0];
@@ -1037,4 +1009,3 @@ if (state.matches.length) {
   renderMatches();
   status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} vecchie doppie tra mercati diversi sono state convertite in fisse mantenendo la prima quota: controlla le selezioni.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
 }
-else $('pdfUrl').value = SISAL_DEFAULT_URL;

@@ -8,19 +8,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sticky-fixed-print-v7-20261022">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=sticky-fixed-print-v7-20261022">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=sticky-fixed-print-v7-20261022">
-  <link rel="manifest" href="./manifest.webmanifest?v=sticky-fixed-print-v7-20261022">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=android-print-v8-20261023">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=android-print-v8-20261023">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=android-print-v8-20261023">
+  <link rel="manifest" href="./manifest.webmanifest?v=android-print-v8-20261023">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=sticky-fixed-print-v7-20261022">
+  <link rel="stylesheet" href="style.css?v=android-print-v8-20261023">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=sticky-fixed-print-v7-20261022"></script>
+  <script type="module" src="app.js?v=android-print-v8-20261023"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sticky-fixed-print-v7-20261022" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=android-print-v8-20261023" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -36,7 +36,7 @@
     </div>
     <p id="infoIntro" class="info-intro">Guida essenziale per importare le quote, costruire il sistema e conservare le tue impostazioni.</p>
     <div class="info-sections">
-      <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su Android scarica prima il bollettino e poi selezionalo da Download/Scaricati. L'importazione diretta dal sito può essere bloccata dal browser. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
+      <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su PC e Android apri il link diretto al Foglio Quote per Manifestazione, scarica il bollettino e poi selezionalo da Download/Scaricati. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
       <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra nello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
       <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
       <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
@@ -89,19 +89,14 @@
       </section>
       <section id="pdfPanel" class="input-method-card pdf-method" aria-labelledby="pdf-title">
         <h3 id="pdf-title">Importa il PDF Sisal (consigliato su Android)</h3>
-        <p class="help">L'importazione diretta dal sito può essere bloccata dal browser (CORS). Su Android, apri il PDF Sisal, scegli <strong>Scarica</strong> quando compare la scelta “Apri in Notes o Scarica”, poi torna qui e seleziona il file nella cartella <strong>Download/Scaricati</strong>.</p>
+        <p class="help">Apri il link diretto al PDF Sisal per manifestazione. Su Android, dopo aver aperto il PDF, scegli, <strong>Scarica</strong> quando compare la scelta “Apri in Notes o Scarica”, poi torna qui e seleziona il file nella cartella <strong>Download/Scaricati</strong>.</p>
         <a class="button secondary full-width" href="#manualPanel">Vai a Incolla manualmente ↑</a>
-        <a id="openSisalPdf" class="button secondary full-width" href="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf" target="_blank" rel="noopener noreferrer">Apri / scarica PDF ufficiale Sisal ↗</a>
-        <label for="pdfFile">Poi seleziona il PDF salvato sul dispositivo</label>
+        <a id="openSisalPdf" class="button primary full-width" href="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf" target="_blank" rel="noopener noreferrer">Quote Sisal per manifestazione ↗</a>
+        <p class="help">Apri il <strong>Foglio Quote — Calcio Base per Manifestazione</strong>, scaricalo sul dispositivo e poi selezionalo qui sotto.</p>
+        <label for="pdfFile">Seleziona il PDF salvato sul dispositivo</label>
         <input id="pdfFile" type="file" accept="application/pdf,.pdf" class="file-input">
         <p id="pdfFileName" class="help" aria-live="polite">Nessun file selezionato.</p>
-        <details class="optional-url">
-          <summary>Prova importazione diretta da URL (può essere bloccata)</summary>
-          <label for="pdfUrl">URL del PDF</label>
-          <input id="pdfUrl" type="url" value="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf">
-          <button id="importPdf" class="button primary full-width" type="button">Tenta importazione diretta</button>
-        </details>
-        <p class="help">Dal PDF vengono caricate solo le partite di Serie A riconosciute.</p>
+        <p class="help">Dal PDF vengono caricate solo le partite di Serie A riconosciute. L'app non tenta più di importare automaticamente il PDF via URL.</p>
         <details id="pdfDiagnostics" class="pdf-diagnostics" hidden><summary id="pdfDiagnosticsSummary">Diagnostica importazione PDF</summary><p id="pdfDiagnosticsText" class="help" aria-live="polite"></p></details>
       </section>
       <div class="team-manager-launch">

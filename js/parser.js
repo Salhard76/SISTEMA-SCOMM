@@ -2,8 +2,6 @@
    Il parser PDF usa la struttura reale del bollettino Sisal: 21 quote decimali
    nell'ordine fisso della tabella e un'anagrafica delle squadre Serie A.
    Se una riga non è riconoscibile con certezza, viene scartata: mai quote inventate. */
-export const SISAL_DEFAULT_URL = 'https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf';
-
 const NUM = String.raw`(?:\d{1,3}(?:[.,]\d{1,3})?)`;
 
 // Elenco iniziale Serie A 2026/27; l'utente può aggiornarlo dall'interfaccia.

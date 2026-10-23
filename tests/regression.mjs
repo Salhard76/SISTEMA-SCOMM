@@ -19,6 +19,20 @@ function test(name, fn) { queue.push({ name, fn }); }
 
 const pageHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const pageJs = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+test('UI: importazione automatica via URL rimossa e link diretto al foglio quote per manifestazione', () => {
+  assert.doesNotMatch(pageHtml, /id="(?:pdfUrl|importPdf)"/);
+  assert.doesNotMatch(pageJs, /importPdf/);
+  assert.doesNotMatch(pageJs, /SISAL_DEFAULT_URL/);
+  assert.match(pageHtml, /id="openSisalPdf"[^>]*href="https:\/\/landing\.sisal\.it\/volantini\/Scommesse_Sport\/Quote\/calcio%20base%20per%20manifestazione\.pdf"/);
+});
+test('Stampa Android: la modalità non viene cancellata da afterprint prima dell’anteprima', () => {
+  const exporter = readFileSync(new URL('../js/exporter.js', import.meta.url), 'utf8');
+  assert.match(exporter, /const isAndroid = \/Android\/i\.test/);
+  assert.match(exporter, /if \(isAndroid\) \{[\s\S]*document\.addEventListener\('visibilitychange', onVisibility\)/);
+  assert.match(exporter, /else \{\n    window\.addEventListener\('afterprint', clear, \{ once: true \}\);/);
+});
+
 test('UI: pulsante Info accessibile collegato alla finestra guida', () => {
   assert.match(pageHtml, /id="infoButton"[^>]*aria-haspopup="dialog"[^>]*aria-controls="infoDialog"/);
   assert.match(pageHtml, /<dialog id="infoDialog"[^>]*aria-labelledby="infoTitle"/);
@@ -37,7 +51,7 @@ test('UI: rimosse le tre soglie statiche e presente la tabella dedicata alla sta
 });
 test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e ridotto', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /@page\{size:A4 portrait;margin:6mm\}/);
+  assert.match(css, /@page\{size:A4 portrait;margin:0\}/);
   assert.match(pageJs, /<th>Quota totale<\/th><th>Vincita netta<\/th>/);
   assert.match(pageJs, /event\.tipo === 'fissa' \? `<strong>/);
   assert.match(pageJs, /const usesHandicap = selected\.some\(outcome => selectionMarketKey\(outcome\) === 'handicap'\)/);
@@ -72,14 +86,14 @@ test('Stampa multipiattaforma: massimo 32 colonne per foglio e nessun salto dopo
   assert.match(pageJs, /printMethodNote = '<span class=\"print-method-note\">/);
   assert.doesNotMatch(pageJs, /pageIndex === pages\.length - 1 \? '<p class=\"print-footnote\"/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:auto!important;page-break-after:auto!important/);
+  assert.match(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:avoid!important;page-break-after:avoid!important/);
   assert.match(css, /body\[data-print-mode="table"\] \.print-page-table\+\.print-page-table\{break-before:page!important;page-break-before:always!important/);
   assert.doesNotMatch(css, /body\[data-print-mode="table"\] \.print-page-table\{[^}]*break-after:page!important/);
   assert.doesNotMatch(css, /body\[data-print-mode="table"\]\{page:columns/);
   assert.equal((css.match(/@page/g) || []).length, 1, 'una sola dichiarazione @page nel CSS; l’orientamento viene aggiornato dal print mode');
   assert.match(css, /body\[data-print-mode="table"\] main\.container\{display:none!important/);
   assert.match(css, /body\[data-print-mode="table"\] #printTableWrap\{display:block!important/);
-  assert.match(css, /height:5mm!important/);
+  assert.match(css, /height:4\.9mm!important/);
   assert.match(css, /white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important/);
   assert.match(pageJs, /class=\"print-column-header\"/);
   assert.ok(pageHtml.indexOf('</main>') < pageHtml.indexOf('id="printTableWrap"'), 'contenitore di stampa isolato fuori da main');
@@ -98,19 +112,19 @@ test('Foglio quote: squadre congelate a sinistra; metadati sono in fondo e intes
   assert.match(css, /\.quote-sheet tbody \.team2-cell,\.quote-sheet thead \.team2-head\{left:var\(--quote-team-width\)\}/);
   assert.match(css, /@media\(max-width:800px\)\{\.quote-sheet-scroll/);
   assert.match(css, /\.quote-sheet \.quote-code\{display:none\}/);
-  assert.match(css, /\.quote-sheet-scroll\{--quote-team-width:118px;--quote-group-head-height:42px/);
+  assert.match(css, /\.quote-sheet-scroll\{--quote-team-width:118px;--quote-group-head-height:38px/);
   assert.match(css, /@media\(max-width:420px\)\{\.quote-sheet-scroll\{--quote-team-width:80px/);
 });
 
 test('Griglia quote: le intestazioni non si sovrappongono e le righe sono compatte senza barra verticale visibile', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(css, /--quote-group-head-height:42px;--quote-head-total-height:69px/);
+  assert.match(css, /--quote-group-head-height:38px;--quote-head-total-height:65px/);
   assert.match(css, /scroll-snap-type:y proximity;scroll-padding-top:var\(--quote-head-total-height\)/);
   assert.match(css, /\.quote-sheet tbody tr\{scroll-snap-align:start\}/);
-  assert.match(css, /top:var\(--quote-group-head-height\);z-index:19;height:27px/);
+  assert.match(css, /top:var\(--quote-group-head-height\);z-index:49;height:27px/);
   assert.match(css, /\.quote-sheet thead\{position:relative;z-index:100\}\n\.quote-sheet tbody\{position:relative;z-index:1\}/);
   assert.match(css, /quote-sheet-scroll::-webkit-scrollbar:vertical\{width:0/);
-  assert.match(css, /\.quote-sheet \.quote-cell\{padding:0;min-width:48px;width:48px;height:34px/);
+  assert.match(css, /\.quote-sheet \.quote-cell\{padding:0;min-width:48px;width:48px;height:30px/);
   assert.match(css, /\.odds-cell\{display:flex;align-items:center;justify-content:center;width:100%;min-width:48px;height:32px/);
 });
 

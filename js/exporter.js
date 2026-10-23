@@ -48,26 +48,36 @@ export function exportText(colonne, puntata) {
 export function printWithMode(mode) {
   const pageRule = document.getElementById?.('runtimePrintPageRule');
   const previousPageRule = pageRule?.textContent ?? '';
-  // Regola @page globale: mantiene lo stesso orientamento nel browser desktop e nel print manager mobile.
   if (pageRule) pageRule.textContent = mode === 'table'
-    ? '@page { size: A4 landscape; margin: 5mm; }'
-    : '@page { size: A4 portrait; margin: 6mm; }';
+    ? '@page { size: A4 landscape; margin: 0; }'
+    : '@page { size: A4 portrait; margin: 0; }';
   document.body.dataset.printMode = mode;
-  // Forza il ricalcolo sincrono di orientamento e contenuto prima del print manager mobile.
+  // Forza il ricalcolo prima che Android consegni il documento al print manager.
   void document.documentElement?.offsetHeight;
   let cleaned = false;
   let timeoutId = null;
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
   const clear = () => {
     if (cleaned) return;
     cleaned = true;
     delete document.body.dataset.printMode;
     if (pageRule) pageRule.textContent = previousPageRule;
     window.removeEventListener('afterprint', clear);
+    document.removeEventListener?.('visibilitychange', onVisibility);
     if (timeoutId !== null) window.clearTimeout(timeoutId);
   };
-  window.addEventListener('afterprint', clear);
-  // Android/alcuni browser non inviano sempre afterprint dopo Annulla.
-  timeoutId = window.setTimeout(clear, 60000);
+  const onVisibility = () => {
+    if (isAndroid && document.visibilityState === 'visible') clear();
+  };
+  if (isAndroid) {
+    // Su Android afterprint può scattare appena si apre l'anteprima, prima che
+    // il print manager abbia catturato il DOM. Non cancelliamo quindi la modalità lì.
+    document.addEventListener('visibilitychange', onVisibility);
+  } else {
+    window.addEventListener('afterprint', clear, { once: true });
+  }
+  // Fallback prudenziale se il browser non emette né afterprint né visibilitychange.
+  timeoutId = window.setTimeout(clear, isAndroid ? 10 * 60 * 1000 : 60000);
   try { window.print(); } catch (error) { clear(); throw error; }
 }
 export function stampaTabella() { printWithMode('table'); }
