@@ -6,6 +6,7 @@ import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collec
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { summarizeColumnRange } from '../js/calculator.js';
+import { calculateStakeAllocation, formatEuroPrecise } from '../js/stake.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
 import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from '../js/selection.js';
@@ -57,7 +58,7 @@ test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e
   assert.match(pageJs, /event\.tipo === 'fissa' \? `<strong>/);
   assert.match(pageJs, /const usesHandicap = selected\.some\(outcome => selectionMarketKey\(outcome\) === 'handicap'\)/);
   assert.match(pageJs, /const meta = \[m\.competizione, m\.data, m\.ora/);
-  assert.match(pageJs, /integralRangeMarkup\('Sistema integrale', fullRange\)/);
+  assert.match(pageJs, /integralRangeMarkup\('Sistema integrale', fullRange, false, fullRangeEmptyMessage\)/);
   assert.match(pageJs, /integralRangeMarkup\('Sistema ridotto', reducedRange, true\)/);
   assert.match(pageJs, /Quota minima/);
   assert.match(pageJs, /Quota massima/);
@@ -67,7 +68,10 @@ test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e
   assert.match(pageJs, /Colonne Giocate \(se ridotto\)/);
   assert.match(pageJs, /Quota per colonna/);
   assert.match(pageJs, /Totale Spesa/);
-  assert.match(pageJs, /formatEuro\(state\.finalColumns\.length \* stake\)/);
+  assert.match(pageJs, /formatEuro\(allocation\.total\)/);
+  assert.match(pageJs, /const allocation = getStakeAllocation\(state\.finalColumns\.length\)/);
+  assert.match(pageJs, /const fullAllocation = getStakeAllocation\(state\.rawColumns\.length\)/);
+  assert.equal((pageJs.match(/<span>Quota massima<\/span>/g) || []).length, 1, 'la quota massima non deve essere duplicata');
   assert.doesNotMatch(pageJs, /range\.count\.toLocaleString\('it-IT'\)\} colonne/, 'i conteggi del footer non si ripetono nei titoli dei riepiloghi');
   assert.doesNotMatch(pageJs, /colonne sviluppate · \$\{state\.finalColumns\.length/, 'i conteggi non si ripetono nell’intestazione');
   assert.match(pageJs, /<span class="integral-outcome"><span>\$\{escapeHtml\(o\.label\)\}<\/span><strong>\$\{formatQuota\(o\.quota\)\}<\/strong>/);
@@ -166,19 +170,28 @@ test('UI: griglia quote al posto dei controlli Fissa/Doppia', () => {
   assert.doesNotMatch(pageHtml, /quote-sheet-intro|Il foglio quote riprende l’ordine del bollettino/);
   assert.match(pageHtml, /handicap numerico H è informativo/);
 });
-test('Selezione quote: un esito è fissa, due dello stesso mercato sono doppia', () => {
+test('Selezione quote: consente doppie nello stesso mercato e tra mercati diversi', () => {
   const match = { id: 'm', casa: 'Torino', trasferta: 'Monza', esiti: [
     { market: '1X2', outcome: '1', label: '1', quota: 2.1 },
     { market: '1X2', outcome: 'X', label: 'X', quota: 3.2 },
+    { market: 'Doppia Chance', outcome: 'X2', label: 'X2', quota: 1.6 },
     { market: 'Under/Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.9 }
   ], selezionati: [] };
   assert.equal(toggleMatchOutcome(match, '1X2:1').kind, 'fissa');
   assert.deepEqual(match.selezionati, ['1X2:1']);
   assert.equal(toggleMatchOutcome(match, '1X2:X').kind, 'doppia');
   assert.deepEqual(match.selezionati, ['1X2:1', '1X2:X']);
-  const switchMarket = toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
-  assert.equal(switchMarket.kind, 'fissa');
-  assert.deepEqual(match.selezionati, ['Under/Over 2.5:Over 2.5']);
+  const refusedWhileFull = toggleMatchOutcome(match, 'Doppia Chance:X2');
+  assert.equal(refusedWhileFull.changed, false);
+  assert.match(refusedWhileFull.message, /anche di mercati diversi/);
+  toggleMatchOutcome(match, '1X2:X');
+  assert.deepEqual(match.selezionati, ['1X2:1']);
+  assert.equal(toggleMatchOutcome(match, 'Doppia Chance:X2').kind, 'doppia');
+  assert.deepEqual(match.selezionati, ['1X2:1', 'Doppia Chance:X2']);
+  toggleMatchOutcome(match, 'Doppia Chance:X2');
+  assert.equal(toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5').kind, 'doppia');
+  assert.deepEqual(match.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5']);
+  toggleMatchOutcome(match, '1X2:1');
   toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
   assert.deepEqual(match.selezionati, []);
 });
@@ -201,36 +214,39 @@ test('Selezione quote: riconosce le opzioni dello stesso mercato anche nel parse
   assert.equal(toggleMatchOutcome(goalMatch, `${noGoal.market}:${noGoal.outcome}`).kind, 'doppia');
 });
 
-test('Migrazione stato: avvisa quante vecchie doppie tra mercati vengono normalizzate', () => {
+test('Migrazione stato: conserva le doppie valide anche tra mercati diversi', () => {
   const result = normalizeMatchList([{ id: 'legacy', esiti: [
     { market: '1X2', outcome: '1' }, { market: 'Under/Over 2.5', outcome: 'Over 2.5' }
   ], selezionati: ['1X2:1', 'Under/Over 2.5:Over 2.5'] }]);
-  assert.equal(result.adjustedCount, 1);
-  assert.deepEqual(result.matches[0].selezionati, ['1X2:1']);
-  assert.equal(result.matches[0].tipo, 'fissa');
+  assert.equal(result.adjustedCount, 0);
+  assert.deepEqual(result.matches[0].selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5']);
+  assert.equal(result.matches[0].tipo, 'doppia');
 });
-test('Selezione quote: non consente tre esiti e normalizza vecchie doppie tra mercati', () => {
+test('Selezione quote: non consente tre esiti ma ammette due mercati sovrapposti', () => {
   const match = { esiti: [
     { market: '1X2', outcome: '1' }, { market: '1X2', outcome: 'X' }, { market: '1X2', outcome: '2' },
-    { market: 'Under/Over 2.5', outcome: 'Over 2.5' }
+    { market: 'Doppia Chance', outcome: 'X2' }, { market: 'Under/Over 2.5', outcome: 'Over 2.5' }
   ], selezionati: ['1X2:1', 'Under/Over 2.5:Over 2.5'] };
   normalizeMatchSelection(match);
-  assert.deepEqual(match.selezionati, ['1X2:1']);
-  assert.equal(match.tipo, 'fissa');
-  match.selezionati = ['1X2:1', '1X2:X'];
-  normalizeMatchSelection(match);
-  const refused = toggleMatchOutcome(match, 'Under/Over 2.5:Over 2.5');
-  assert.equal(refused.changed, true); // mercato diverso passa intenzionalmente a una fissa
-  assert.deepEqual(match.selezionati, ['Under/Over 2.5:Over 2.5']);
-  match.selezionati = ['1X2:1', '1X2:X']; normalizeMatchSelection(match);
-  const noThird = toggleMatchOutcome(match, '1X2:2');
+  assert.deepEqual(match.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5']);
+  assert.equal(match.tipo, 'doppia');
+  const noThird = toggleMatchOutcome(match, '1X2:X');
   assert.equal(noThird.changed, false);
-  assert.match(noThird.message, /due quote/);
+  assert.match(noThird.message, /massimo 2 quote/);
+  assert.deepEqual(match.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5']);
+});
+
+test('UI: doppie tra mercati differenti sono documentate e non bloccate dal controllo preliminare', () => {
+  assert.match(pageHtml, /mercati diversi.*1 \+ X2.*1 \+ Over 2\.5/i);
+  assert.match(pageJs, /anche se appartengono a mercati diversi/);
+  assert.doesNotMatch(pageJs, /deve contenere due esiti dello stesso mercato/);
 });
 
 const backupExample = createBackupPayload({
   manualInput: 'Milan - Roma; 2.10; 3.20; 3.60',
   stake: '0.10',
+  stakeMode: 'total-budget',
+  systemBudget: '25.00',
   sisalBonus: true,
   theme: 'dark',
   matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', palinsesto: '36431', avvenimento: '1003', handicap: '1', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
@@ -252,6 +268,17 @@ test('Backup JSON: esporta e valida impostazioni, partite e lista squadre', () =
   assert.deepEqual(restored.teamLines, ['Squadra Uno', 'Squadra Due']);
   assert.equal(restored.theme, 'dark');
   assert.equal(restored.sisalBonus, true);
+  assert.equal(restored.stakeMode, 'total-budget');
+  assert.equal(restored.systemBudget, '25.00');
+});
+test('Backup JSON: conserva una doppia composta da mercati diversi', () => {
+  const crossMarket = structuredClone(backupExample);
+  crossMarket.data.matches[0].esiti.push({ market: 'Under/Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.9 });
+  crossMarket.data.matches[0].tipo = 'doppia';
+  crossMarket.data.matches[0].selezionati = ['1X2:1', 'Under/Over 2.5:Over 2.5'];
+  const restored = validateBackupPayload(crossMarket);
+  assert.equal(restored.matches[0].tipo, 'doppia');
+  assert.deepEqual(restored.matches[0].selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5']);
 });
 test('Backup JSON: rifiuta più di 30 partite caricate', () => {
   const invalid = structuredClone(backupExample);
@@ -272,6 +299,58 @@ test('Backup JSON: rifiuta un formato/versione sconosciuti', () => {
   const invalid = structuredClone(backupExample);
   invalid.format = 'altro';
   assert.throws(() => validateBackupPayload(invalid), /non è un backup/);
+});
+
+test('Budget totale: ripartizione su colonne effettive, residuo ai centesimi e nessun superamento', () => {
+  const three = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '10.00', columnCount: 3 });
+  assert.equal(three.valid, true);
+  assert.equal(three.theoreticalPerColumn, 10 / 3);
+  assert.equal(three.perColumn, 3.33);
+  assert.equal(three.total, 9.99);
+  assert.equal(three.residue, 0.01);
+  assert.ok(three.total <= three.inputBudget);
+
+  const five = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '10.00', columnCount: 5 });
+  assert.equal(five.perColumn, 2);
+  assert.equal(five.total, 10);
+  assert.equal(five.residue, 0);
+
+  const reduced = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '10.00', columnCount: 2 });
+  assert.equal(reduced.perColumn, 5);
+  assert.equal(reduced.total, 10);
+
+  const insufficient = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '1.00', columnCount: 101 });
+  assert.equal(insufficient.valid, false);
+  assert.match(insufficient.error, /puntata minima di 0,01/);
+
+  const noColumns = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '10.00', columnCount: 0 });
+  assert.equal(noColumns.valid, true);
+  assert.equal(noColumns.total, 0);
+  assert.equal(noColumns.residue, 10);
+});
+
+test('Puntata per colonna: spesa proporzionale al numero effettivo di colonne', () => {
+  const allocation = calculateStakeAllocation({ mode: 'per-column', perColumnInput: '0.10', columnCount: 32 });
+  assert.equal(allocation.valid, true);
+  assert.equal(allocation.perColumn, 0.1);
+  assert.equal(allocation.total, 3.2);
+  assert.equal(allocation.residue, 0);
+});
+
+test('UI puntata: modalità, budget, anteprima e persistenza sono presenti', () => {
+  assert.match(pageHtml, /id="stakeMode"/);
+  assert.match(pageHtml, /value="total-budget"/);
+  assert.match(pageHtml, /id="systemBudget"/);
+  assert.match(pageHtml, /id="stakePreview"/);
+  assert.match(pageJs, /stakeMode: \$\('stakeMode'\)\.value/);
+  assert.match(pageJs, /systemBudget: \$\('systemBudget'\)\.value/);
+  assert.match(pageJs, /const stake = allocation\.perColumn/);
+  assert.match(pageJs, /Residuo non utilizzato/);
+  assert.match(pageHtml, /budget non viene superato/i);
+});
+
+test('Budget totale: importo teorico mostra precisione maggiore dei centesimi', () => {
+  assert.equal(formatEuroPrecise(10 / 3), '3,3333 €');
 });
 
 const manual = parseManualInput('Milan-Roma; 2.10; 3.20; 3.60');
@@ -557,6 +636,7 @@ test('Probabilità senza aggio: la Doppia Chance somma a 2 ed esclude la mutua e
   const total = [...fair.values()].reduce((t, v) => t + v, 0);
   assert.ok(Math.abs(total - 2) < 1e-9);
   assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [dc.esiti[0], dc.esiti[1]] }]), false);
+  assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [{ market: '1X2', outcome: '1' }, { market: 'Under/Over 2.5', outcome: 'Over 2.5' }] }]), false, 'quote selezionate su mercati diversi possono vincere contemporaneamente');
   assert.equal(isExclusiveSystem([{ tipo: 'doppia', esiti: [{ market: '1X2', outcome: '1' }, { market: '1X2', outcome: 'X' }] }, { tipo: 'fissa', esiti: [dc.esiti[0]] }]), true);
 });
 test('Generatore: la probabilità di colonna è il prodotto delle probabilità delle gambe', () => {
@@ -569,6 +649,28 @@ test('Generatore: la probabilità di colonna è il prodotto delle probabilità d
   assert.ok(Math.abs(colonne[0].prob - 0.08) < 1e-12);
   assert.ok(Math.abs(colonne[1].prob - 0.06) < 1e-12);
 });
+test('Generatore: doppia tra mercati diversi produce colonne alternative senza combinare quote nello stesso evento', () => {
+  const event = { id: 'cross-market', nome: 'Torino - Monza', tipo: 'doppia', esiti: [
+    { label: '1', outcome: '1', market: '1X2', quota: 2.1, prob: 0.45 },
+    { label: 'Over 2.5', outcome: 'Over 2.5', market: 'Under/Over 2.5', quota: 1.9, prob: 0.52 }
+  ] };
+  const result = generateSystem([event]);
+  assert.equal(result.exceeded, false);
+  assert.equal(result.colonne.length, 2);
+  assert.deepEqual(result.colonne.map(column => column.esiti[0].label), ['1', 'Over 2.5']);
+  assert.ok(result.colonne.every(column => column.esiti.length === 1));
+  assert.equal(isExclusiveSystem([event]), false);
+});
+
+test('CSV: esporta modalità di puntata e riepilogo del budget effettivo', () => {
+  const allocation = calculateStakeAllocation({ mode: 'total-budget', totalBudgetInput: '10.00', columnCount: 3 });
+  const csv = buildCsv([{ id: 1, quotaTotale: 2, prob: 0.5, ritornoStimato: 6.66, profittoStimato: 3.33, esiti: [] }], allocation);
+  assert.match(csv, /Budget totale impostato \(€\).*10,00/);
+  assert.match(csv, /Importo effettivo per colonna \(€\).*3,33/);
+  assert.match(csv, /Spesa effettiva \(€\).*9,99/);
+  assert.match(csv, /Residuo non utilizzato \(€\).*0,01/);
+});
+
 test('CSV: numeri con virgola decimale e senza virgolette (leggibili da Excel in italiano)', () => {
   const csv = buildCsv([{ id: 3, quotaTotale: 12.345, prob: 0.0712, bonusPercentuale: 4, ritornoStimato: 1.2345, profittoStimato: 1.1345,
     esiti: [{ partita: 'Milan - Roma', label: '1', quota: 2.1 }] }]);
@@ -582,11 +684,12 @@ test('CSV: numeri con virgola decimale e senza virgolette (leggibili da Excel in
 test('Foglio quote: il ridisegno conserva scroll e focus; puntata con debounce; stampa costruita alla stampa', () => {
   assert.match(pageJs, /scroller\.scrollLeft = keepScroll\.left/);
   assert.match(pageJs, /again\?\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(pageJs, /stakeRenderTimeout = setTimeout\(\(\) => \{ if \(state\.lastGenerated\) renderTable\(\); \}, 300\)/);
+  assert.match(pageJs, /function scheduleStakeUpdate\(\)/);
+  assert.match(pageJs, /stakeRenderTimeout = setTimeout\(\(\) => \{/);
   assert.match(pageJs, /\$\('printTable'\)\.addEventListener\('click', \(\) => \{/);
   assert.match(pageJs, /refreshGeneratedColumnsNow\(\) \|\| !state\.rawColumns\.length/);
   assert.match(readFileSync(new URL('../js/exporter.js', import.meta.url), 'utf8'), /void document\.documentElement\?\.offsetHeight/);
-  assert.match(pageJs, /buildPrintTable\(\);\s*stampaTabella\(\);/);
+  assert.match(pageJs, /buildPrintTable\(\);\s*if \(!\$\('printTableWrap'\)\.children\.length\) return;\s*stampaTabella\(\);/);
 });
 test('Limiti: si possono caricare più partite di quelle selezionabili, ma non più di 10 selezionate', () => {
   assert.ok(MAX_LOADED_MATCHES >= MAX_MATCHES);

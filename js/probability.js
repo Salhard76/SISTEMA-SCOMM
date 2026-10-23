@@ -30,11 +30,17 @@ export function fairProbabilities(match) {
   return result;
 }
 
-/* Le colonne sono mutuamente esclusive (al massimo una può vincere) se ogni doppia è composta da
-   esiti incompatibili tra loro: non vale per la Doppia Chance (1X e X2 si sovrappongono sulla X). */
+/* Le colonne sono sicuramente mutuamente esclusive solo se le scelte alternative di ogni doppia
+   rappresentano esiti dello stesso mercato esclusivi tra loro. Mercati diversi vengono trattati
+   in modo prudenziale come potenzialmente sovrapposti (es. 1 + Over 2.5). Anche gli esiti Doppia
+   Chance possono sovrapporsi tra loro (es. 1X e X2 sulla X). */
 export function isExclusiveSystem(events) {
-  return (Array.isArray(events) ? events : []).every(event =>
-    event.tipo === 'fissa' || event.esiti.every(outcome => selectionMarketKey(outcome) !== 'doppia chance'));
+  return (Array.isArray(events) ? events : []).every(event => {
+    if (event.tipo === 'fissa') return true;
+    const outcomes = Array.isArray(event.esiti) ? event.esiti : [];
+    if (outcomes.some(outcome => selectionMarketKey(outcome) === 'doppia chance')) return false;
+    return outcomes.every(outcome => selectionMarketKey(outcome) === selectionMarketKey(outcomes[0]));
+  });
 }
 
 export function columnProbability(column) {

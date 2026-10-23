@@ -1,6 +1,10 @@
 # Sistema Scommesse Builder
 
-## Novità versione 9 — riepilogo economico completo nella stampa integrale
+## Novità versione 10 — budget totale e doppie tra mercati
+- **Due modalità di puntata**: importo per colonna oppure budget totale ripartito sulle colonne effettivamente rimaste dopo i filtri. Nel budget totale la quota per colonna viene arrotondata per difetto ai centesimi; il residuo è mostrato e la spesa non supera il budget. I calcoli economici vengono aggiornati quando cambiano colonne, filtri o modalità.
+- **Doppie tra mercati**: oltre a due quote dello stesso mercato, è possibile selezionare due quote di mercati diversi sulla stessa partita (es. 1 + X2 o 1 + Over 2.5). Restano al massimo due scelte per partita e 1.024 colonne per il sistema integrale. In questi sistemi la probabilità che almeno una colonna vinca non viene sommata automaticamente, perché le selezioni possono sovrapporsi.
+
+## Funzionalità della versione 9 — riepilogo economico completo nella stampa integrale
 - **Foglio quote stile Excel**: le due squadre restano bloccate a sinistra anche sul desktop; le intestazioni dei mercati restano in alto durante lo scorrimento verticale. Data/ora scorrono dopo i nomi delle squadre, mentre Pal./Avv. sono nascosti negli schermi stretti per lasciare spazio alle quote. Lo scorrimento orizzontale rimane confinato al foglio.
 - **Stampa senza fogli vuoti**: orientamento controllato con un'unica regola `@page`; le pagine successive iniziano con `break-before`, senza interruzione forzata dopo l'ultima. La nota di calcolo è nella prima pagina e non può creare una pagina finale quasi vuota.
 - **32 combinazioni per foglio**: esattamente 32 righe per A4 orizzontale; dalla combinazione 33 si passa al foglio successivo. Le 1.024 combinazioni generano 32 pagine, non 33.
@@ -26,7 +30,7 @@ Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazion
 5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**: l'icona usa la stessa mascotte La(a)rfleeze già impiegata in Cammafà.
 6. Su Android, apri il collegamento **Apri / scarica PDF ufficiale Sisal**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
 7. In alternativa, incolla i dati nella sezione manuale, che resta sempre disponibile.
-8. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra dello stesso mercato formano una doppia; il valore numerico H dell’handicap è informativo e non cliccabile. Imposta i filtri e premi **Genera sistema**.
+8. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra formano una doppia anche tra mercati diversi; il valore numerico H dell’handicap è informativo e non cliccabile. Imposta i filtri e premi **Genera sistema**.
 9. Esporta CSV/testo oppure stampa la tabella.
 
 ## Formato manuale
@@ -39,14 +43,14 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 
 ## Limiti noti
 - La modalità consigliata su PC e Android è aprire il link diretto al Foglio Quote Sisal per Manifestazione, scaricare il PDF e selezionarlo dal dispositivo. Non viene più tentata l’importazione automatica via URL, evitando i problemi CORS. Il parser PDF è specializzato sul layout del bollettino Sisal: importa esclusivamente Serie A, usa un elenco modificabile dalla finestra “Gestisci elenco squadre Serie A” (una squadra per riga, supporta nomi composti e alias) e richiede tutte le 21 quote decimali nell'ordine della tabella. L’elenco base è quello della Serie A 2026/27; da agosto appare un promemoria stagionale che resta visibile finché l’elenco non viene salvato o confermato. Le righe non riconosciute vengono scartate per evitare associazioni errate. Una diagnostica espandibile mostra righe esaminate, rifiuti, conteggio delle quote e duplicati.
-- La “probabilità implicita (con aggio)” è 100 ÷ quota totale e sovrastima: ogni quota include il margine del bookmaker, che su più gambe si compone. La “probabilità stimata (senza aggio)” toglie il margine in modo proporzionale sui mercati completi (1X2, Handicap, Doppia Chance, Under/Over, Goal/NoGoal, Segna Goal); dove il mercato è incompleto resta l'implicita. Il riepilogo mostra anche la probabilità che almeno una colonna vinca e il ritorno atteso, solo se le colonne sono mutuamente esclusive (non con la Doppia Chance). Sono stime con partite indipendenti, non garanzie.
+- La “probabilità implicita (con aggio)” è 100 ÷ quota totale e sovrastima: ogni quota include il margine del bookmaker, che su più gambe si compone. La “probabilità stimata (senza aggio)” toglie il margine in modo proporzionale sui mercati completi (1X2, Handicap, Doppia Chance, Under/Over, Goal/NoGoal, Segna Goal); dove il mercato è incompleto resta l'implicita. Il riepilogo mostra anche la probabilità che almeno una colonna vinca e il ritorno atteso solo quando le colonne sono mutuamente esclusive; la Doppia Chance o una doppia che combina mercati diversi disabilita questa stima complessiva per evitare di sommare probabilità sovrapposte. Sono stime con partite indipendenti, non garanzie.
 - Il ritorno lordo è quota totale × puntata; il profitto teorico sottrae la puntata. Nella stampa colonne si riportano solo quota totale e vincita netta (esclusi eventuali bonus). La stampa conserva tutte le combinazioni sviluppate: le righe non ammesse dai filtri hanno sfondo grigio e sono conteggiate separatamente; il costo totale indicato considera solo le colonne rimaste attive. Prima di stampare o esportare l'app ricalcola subito i filtri, anche se l'ultimo tocco è avvenuto da meno di 300 ms.
-- La selezione viene dedotta automaticamente: zero quote = partita esclusa, una quota = fissa, due quote dello stesso mercato = doppia. Una scelta in un mercato diverso sostituisce la selezione precedente. Le doppie tra mercati diversi non sono ammesse. In un vecchio backup, un abbinamento di quel tipo viene ricondotto a fissa conservando la prima quota e l’app mostra un avviso.
+- La selezione viene dedotta automaticamente: zero quote = partita esclusa, una quota = fissa, due quote = doppia del sistema, anche se le quote provengono da mercati diversi. Il limite resta di due selezioni per partita. I backup che contengono due selezioni valide di mercati diversi vengono mantenuti come doppie.
 - Se il file viene aperto con `file://`, alcuni browser possono limitare i moduli JavaScript. Per provarlo in locale usa un server statico oppure GitHub Pages.
 
 ## Test manuali suggeriti
 1. Inserisci `Milan - Roma; 2.10; 3.20; 3.60` e verifica che la partita venga caricata con quote 1X2.
-2. Aggiungi una seconda partita e clicca due quote dello stesso mercato in entrambe le righe: il sistema deve produrre 4 colonne.
+2. Aggiungi una seconda partita e clicca due quote in entrambe le righe (anche appartenenti a mercati diversi): il sistema deve produrre 4 colonne.
 3. Con 10 doppie, il sistema deve produrre esattamente 1.024 colonne. Il generatore deve rifiutare 11 partite o più di 2 esiti su una partita variabile.
 4. Imposta un filtro dinamico su un esito presente nelle doppie e controlla che il contatore e la tabella si aggiornino. Gli esiti fissi sono esclusi dal catalogo perché presenti in tutte le colonne.
 5. Crea quattro doppie selezionando Over 2.5 e Under 2.5 in ognuna; imposta “Over 2.5 · Max = 3” e verifica che restino le colonne con non più di tre Over.

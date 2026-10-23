@@ -1,4 +1,5 @@
-/* Selezione quote della griglia: 1 quota = fissa, 2 quote dello stesso mercato = doppia. */
+/* Selezione quote: 1 quota = fissa; 2 quote, anche di mercati diversi, = doppia del sistema. */
+import { MAX_CHOICES_PER_MATCH } from './config.js?v=stake-budget-overlap-v10-20261023';
 
 export function selectionMarketKey(outcome) {
   const market = String(outcome?.market ?? '')
@@ -16,12 +17,7 @@ export function normalizeMatchSelection(match) {
   const source = Array.isArray(match?.selezionati) ? match.selezionati : [];
   const valid = [...new Set(source.map(value => String(value ?? '')).filter(key =>
     options.some(outcome => `${outcome.market}:${outcome.outcome}` === key)
-  ))].slice(0, 2);
-  if (valid.length === 2) {
-    const first = options.find(outcome => `${outcome.market}:${outcome.outcome}` === valid[0]);
-    const second = options.find(outcome => `${outcome.market}:${outcome.outcome}` === valid[1]);
-    if (!first || !second || selectionMarketKey(first) !== selectionMarketKey(second)) valid.splice(1, 1);
-  }
+  ))].slice(0, MAX_CHOICES_PER_MATCH);
   match.selezionati = valid;
   match.tipo = valid.length === 2 ? 'doppia' : 'fissa';
   return match;
@@ -37,19 +33,12 @@ export function toggleMatchOutcome(match, key) {
     normalizeMatchSelection(normalized);
     return { changed: true, kind: normalized.tipo, count: normalized.selezionati.length };
   }
-  if (selected.length === 0) {
-    normalized.selezionati = [key];
-  } else {
-    const first = normalized.esiti.find(outcome => `${outcome.market}:${outcome.outcome}` === selected[0]);
-    if (!first || selectionMarketKey(first) !== selectionMarketKey(target)) {
-      // Un mercato differente sostituisce la scelta precedente, non crea una doppia artificiale.
-      normalized.selezionati = [key];
-    } else if (selected.length === 1) {
-      normalized.selezionati = [selected[0], key];
-    } else {
-      return { changed: false, message: 'Sono già selezionate due quote in questo mercato. Deselezionane una per cambiarle.' };
-    }
+  if (selected.length >= MAX_CHOICES_PER_MATCH) {
+    return { changed: false, message: `Per ogni partita puoi selezionare al massimo ${MAX_CHOICES_PER_MATCH} quote, anche di mercati diversi. Deselezionane una prima di aggiungerne un'altra.` };
   }
+  // Due selezioni possono appartenere allo stesso mercato oppure a mercati diversi
+  // (per esempio 1 + X2, oppure 1 + Over 2.5).
+  normalized.selezionati = [...selected, key];
   normalizeMatchSelection(normalized);
   return { changed: true, kind: normalized.tipo, count: normalized.selezionati.length };
 }

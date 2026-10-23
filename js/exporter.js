@@ -21,14 +21,19 @@ function download(content, type, filename) {
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export function buildCsv(colonne) {
+export function buildCsv(colonne, allocation = null) {
   const head = ['N. colonna', ...Array.from({ length: 10 }, (_, i) => `Partita ${i + 1} / esito`), 'Quota totale', 'Probabilità implicita con aggio (%)', 'Probabilità stimata senza aggio (%)', 'Bonus Sisal stimato (%)', 'Ritorno lordo stimato (€)', 'Profitto teorico stimato (€)'];
   const rows = [
     [csvText('SISTEMA SCOMMESSE BUILDER')],
     [csvText('Nota'), csvText('Una riga corrisponde a una colonna del sistema. Importi, probabilità e bonus sono stime, non garantiti.')],
-    [],
-    head.map(csvText)
   ];
+  if (allocation?.valid) {
+    rows.push(
+      [csvText('Modalità importo'), csvText(allocation.mode === 'total-budget' ? 'Budget totale' : 'Importo per colonna')],
+      ...(allocation.mode === 'total-budget' ? [[csvText('Budget totale impostato (€)'), csvNum(allocation.inputBudget)], [csvText('Importo teorico per colonna (€)'), csvNum(allocation.theoreticalPerColumn, 4)], [csvText('Importo effettivo per colonna (€)'), csvNum(allocation.perColumn)], [csvText('Spesa effettiva (€)'), csvNum(allocation.total)], [csvText('Residuo non utilizzato (€)'), csvNum(allocation.residue)]] : [[csvText('Importo per colonna (€)'), csvNum(allocation.perColumn)], [csvText('Spesa effettiva (€)'), csvNum(allocation.total)]])
+    );
+  }
+  rows.push([], head.map(csvText));
   for (const c of colonne) {
     const esiti = c.esiti.map(e => csvText(`${e.partita}: ${e.label} (quota ${String(e.quota).replace('.', ',')})`));
     while (esiti.length < 10) esiti.push('');
@@ -37,11 +42,17 @@ export function buildCsv(colonne) {
   }
   return '\ufeff' + rows.map(row => row.join(';')).join('\r\n');
 }
-export function exportCSV(colonne) {
-  download(buildCsv(colonne), 'text/csv;charset=utf-8;', 'sistema-scommesse-leggibile.csv');
+export function exportCSV(colonne, allocation = null) {
+  download(buildCsv(colonne, allocation), 'text/csv;charset=utf-8;', 'sistema-scommesse-leggibile.csv');
 }
-export function exportText(colonne, puntata) {
-  const lines = ['SISTEMA SCOMMESSE BUILDER', `Puntata per colonna: ${puntata.toFixed(2)} €`, `Colonne esportate: ${colonne.length}`, 'Nota: bonus e ritorni sono stime non garantite.', ''];
+export function exportText(colonne, puntata, allocation = null) {
+  const lines = ['SISTEMA SCOMMESSE BUILDER'];
+  if (allocation?.mode === 'total-budget') {
+    lines.push(`Modalità importo: budget totale`, `Budget impostato: ${Number(allocation.inputBudget || 0).toFixed(2)} €`, `Importo teorico per colonna: ${Number(allocation.theoreticalPerColumn || 0).toFixed(4)} €`, `Puntata effettiva per colonna: ${Number(puntata || 0).toFixed(2)} €`, `Spesa effettiva: ${Number(allocation.total || 0).toFixed(2)} €`, `Residuo non utilizzato: ${Number(allocation.residue || 0).toFixed(2)} €`);
+  } else {
+    lines.push(`Modalità importo: per colonna`, `Puntata per colonna: ${Number(puntata || 0).toFixed(2)} €`, `Spesa effettiva: ${(colonne.length * Number(puntata || 0)).toFixed(2)} €`);
+  }
+  lines.push(`Colonne esportate: ${colonne.length}`, 'Nota: bonus e ritorni sono stime non garantite.', '');
   for (const c of colonne) lines.push(`COLONNA ${c.id}`, ...c.esiti.map(e => `  • ${e.partita}: ${e.label} (quota ${e.quota})`), `  Quota totale: ${Number(c.quotaTotale).toFixed(2)} | Prob. stimata: ${((Number.isFinite(c.prob) ? c.prob : 1 / c.quotaTotale) * 100).toFixed(3)}% | Bonus stimato: ${(Number(c.bonusPercentuale)||0).toFixed(2)}% | Ritorno lordo: ${Number(c.ritornoStimato||0).toFixed(2)} € | Profitto teorico: ${Number(c.profittoStimato||0).toFixed(2)} €`, '');
   download(lines.join('\n'), 'text/plain;charset=utf-8', 'sistema-scommesse-dettaglio.txt');
 }

@@ -8,19 +8,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=integral-summary-v9-20261023">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=integral-summary-v9-20261023">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=integral-summary-v9-20261023">
-  <link rel="manifest" href="./manifest.webmanifest?v=integral-summary-v9-20261023">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=stake-budget-overlap-v10-20261023">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=stake-budget-overlap-v10-20261023">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=stake-budget-overlap-v10-20261023">
+  <link rel="manifest" href="./manifest.webmanifest?v=stake-budget-overlap-v10-20261023">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=integral-summary-v9-20261023">
+  <link rel="stylesheet" href="style.css?v=stake-budget-overlap-v10-20261023">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=integral-summary-v9-20261023"></script>
+  <script type="module" src="app.js?v=stake-budget-overlap-v10-20261023"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=integral-summary-v9-20261023" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=stake-budget-overlap-v10-20261023" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -37,7 +37,7 @@
     <p id="infoIntro" class="info-intro">Guida essenziale per importare le quote, costruire il sistema e conservare le tue impostazioni.</p>
     <div class="info-sections">
       <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su PC e Android apri il link diretto al Foglio Quote per Manifestazione, scarica il bollettino e poi selezionalo da Download/Scaricati. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
-      <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra nello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
+      <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra formano automaticamente una <strong>doppia</strong>, anche tra mercati diversi (per esempio 1 + X2 oppure 1 + Over 2.5). Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita, anche di mercati diversi</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
       <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
       <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
       <section><h3>5. Backup e squadre</h3><p>Da “Backup e ripristino” esporta un JSON e conservalo fuori dal dispositivo. Il ripristino sostituisce le impostazioni locali dopo conferma. L'elenco squadre si può modificare; quello di riferimento incluso nell'app non è un aggiornamento live dal sito ufficiale.</p></section>
@@ -130,8 +130,14 @@
 
     <section class="panel" aria-labelledby="generate-title">
       <div class="section-heading"><div><p class="eyebrow">PASSO 3</p><h2 id="generate-title">Genera sistema</h2></div><span class="step-number">03</span></div>
+      <div class="stake-controls">
+        <div class="field"><label for="stakeMode">Modalità importo</label><select id="stakeMode"><option value="per-column">Importo per colonna</option><option value="total-budget">Importo totale del sistema</option></select></div>
+        <div class="field" id="stakePerColumnField"><label for="stake">Puntata per colonna (€)</label><input id="stake" type="number" min="0.01" max="100000" step="0.01" value="0.10"></div>
+        <div class="field" id="systemBudgetField" hidden><label for="systemBudget">Budget totale del sistema (€)</label><input id="systemBudget" type="number" min="0.01" max="100000" step="0.01" value="10.00"></div>
+      </div>
+      <p id="stakePreview" class="stake-preview" aria-live="polite">Genera il sistema per calcolare la spesa effettiva.</p>
+      <p class="help stake-help">Con il budget totale, la puntata viene ripartita sulle colonne rimaste dopo i filtri. L'importo per colonna è arrotondato per difetto al centesimo: l'eventuale residuo non viene speso e il budget non viene superato.</p>
       <div class="generate-controls">
-        <div class="field"><label for="stake">Puntata per colonna (€)</label><input id="stake" type="number" min="0.01" step="0.01" value="0.10"></div>
         <div class="field system-limit"><label>Limite massimo del sistema</label><p><strong>1.024 colonne</strong></p><p class="help">10 partite × massimo 2 esiti ciascuna: 2¹⁰ = 1.024.</p></div>
         <button id="generate" class="button primary" type="button">Genera sistema</button>
         <button id="reset" class="button danger" type="button">Reset completo</button>

@@ -1,13 +1,14 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=integral-summary-v9-20261023';
-import { generateSystem } from './js/generator.js?v=integral-summary-v9-20261023';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=integral-summary-v9-20261023';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=integral-summary-v9-20261023';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=integral-summary-v9-20261023';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=integral-summary-v9-20261023';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=integral-summary-v9-20261023';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=integral-summary-v9-20261023';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=integral-summary-v9-20261023';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=integral-summary-v9-20261023';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=stake-budget-overlap-v10-20261023';
+import { generateSystem } from './js/generator.js?v=stake-budget-overlap-v10-20261023';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=stake-budget-overlap-v10-20261023';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=stake-budget-overlap-v10-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=stake-budget-overlap-v10-20261023';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=stake-budget-overlap-v10-20261023';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=stake-budget-overlap-v10-20261023';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=stake-budget-overlap-v10-20261023';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=stake-budget-overlap-v10-20261023';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=stake-budget-overlap-v10-20261023';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=stake-budget-overlap-v10-20261023';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -22,6 +23,44 @@ const debouncedUpdateCounter = () => {
 
 function status(message, type = '') {
   const el = $('status'); el.textContent = message; el.className = `status ${type}`.trim();
+}
+function getStakeAllocation(columnCount = state.finalColumns.length) {
+  return calculateStakeAllocation({
+    mode: $('stakeMode')?.value || 'per-column',
+    perColumnInput: $('stake')?.value ?? '0.10',
+    totalBudgetInput: $('systemBudget')?.value ?? '10.00',
+    columnCount
+  });
+}
+function updateStakeModeVisibility() {
+  const budgetMode = $('stakeMode')?.value === 'total-budget';
+  $('stakePerColumnField').hidden = budgetMode;
+  $('systemBudgetField').hidden = !budgetMode;
+}
+function renderStakePreview(columnCount = (state.lastGenerated ? state.finalColumns.length : 0)) {
+  const node = $('stakePreview');
+  if (!node) return;
+  const allocation = getStakeAllocation(columnCount);
+  if (!allocation.valid) {
+    node.classList.add('stake-preview-error');
+    node.textContent = allocation.error;
+    return;
+  }
+  node.classList.remove('stake-preview-error');
+  if (columnCount <= 0) {
+    node.textContent = allocation.mode === 'total-budget'
+      ? `Budget impostato: ${formatEuro(allocation.inputBudget)}. Nessuna colonna effettiva: il budget resta inutilizzato finché il sistema non contiene colonne dopo i filtri.`
+      : 'Genera il sistema per calcolare la spesa effettiva.';
+    return;
+  }
+  if (allocation.mode === 'total-budget') {
+    node.textContent = `Colonne effettive: ${columnCount.toLocaleString('it-IT')} · Importo teorico/colonna: ${formatEuroPrecise(allocation.theoreticalPerColumn)} · Puntata applicabile/colonna: ${formatEuro(allocation.perColumn)} · Spesa effettiva: ${formatEuro(allocation.total)} · Residuo non utilizzato: ${formatEuro(allocation.residue)}.`;
+  } else {
+    node.textContent = `Colonne effettive: ${columnCount.toLocaleString('it-IT')} · Puntata/colonna: ${formatEuro(allocation.perColumn)} · Spesa totale: ${formatEuro(allocation.total)}.`;
+  }
+}
+function getStakeModeLabel(allocation) {
+  return allocation?.mode === 'total-budget' ? 'Budget totale' : 'Importo per colonna';
 }
 const reviewedSeasonKey = 'sistema-scommesse-serie-a-reviewed-season-v1';
 function currentSeason() {
@@ -168,6 +207,8 @@ function saveState() {
     localStorage.setItem(savedKey, JSON.stringify({
       manualInput: $('manualInput').value,
       stake: $('stake').value,
+      stakeMode: $('stakeMode').value,
+      systemBudget: $('systemBudget').value,
       matches: state.matches,
       outcomeFilterLimits: state.outcomeFilterLimits,
       theme: document.documentElement.dataset.theme || 'light',
@@ -183,6 +224,9 @@ function restoreState() {
     if (!data) return;
     $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake || '0.10';
+    $('stakeMode').value = data.stakeMode === 'total-budget' ? 'total-budget' : 'per-column';
+    $('systemBudget').value = data.systemBudget || '10.00';
+    updateStakeModeVisibility();
     $('sisalBonus').checked = data.sisalBonus !== false;
     if (Array.isArray(data.matches)) {
       const normalized = normalizeMatchList(data.matches.slice(0, MAX_LOADED_MATCHES));
@@ -200,6 +244,8 @@ function getBackupData() {
   return {
     manualInput: $('manualInput').value,
     stake: $('stake').value,
+    stakeMode: $('stakeMode').value,
+    systemBudget: $('systemBudget').value,
     matches: state.matches,
     outcomeFilterLimits: state.outcomeFilterLimits,
     theme: document.documentElement.dataset.theme || 'light',
@@ -239,6 +285,9 @@ function applyBackup(data) {
   state.pdfDiagnostics = data.pdfDiagnostics || null;
   $('manualInput').value = data.manualInput;
   $('stake').value = data.stake;
+  $('stakeMode').value = data.stakeMode === 'total-budget' ? 'total-budget' : 'per-column';
+  $('systemBudget').value = data.systemBudget || '10.00';
+  updateStakeModeVisibility();
   $('sisalBonus').checked = data.sisalBonus;
   document.documentElement.dataset.theme = data.theme;
   try {
@@ -253,8 +302,8 @@ function applyBackup(data) {
   $('summary').textContent = 'Dati ripristinati. Il sistema va rigenerato per aggiornare conteggi e colonne.';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   saveState();
-  $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate.${state.legacyAdjustedCount ? ` ${state.legacyAdjustedCount} doppie tra mercati diversi di un vecchio backup sono state convertite in fisse mantenendo la prima quota selezionata.` : ''} Premi “Genera sistema” per ricalcolare le colonne.`;
-  status(state.legacyAdjustedCount ? `Backup ripristinato con avviso: ${state.legacyAdjustedCount} vecchie doppie tra mercati diversi sono state convertite in fisse. Controlla il foglio quote.` : 'Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', state.legacyAdjustedCount ? 'warning' : 'success');
+  $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate.${state.legacyAdjustedCount ? ` ${state.legacyAdjustedCount} selezioni non più valide sono state corrette durante il ripristino: controlla il foglio quote.` : ''} Premi “Genera sistema” per ricalcolare le colonne.`;
+  status(state.legacyAdjustedCount ? `Backup ripristinato con avviso: ${state.legacyAdjustedCount} selezioni non più valide sono state corrette. Controlla il foglio quote.` : 'Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', state.legacyAdjustedCount ? 'warning' : 'success');
 }
 $('exportBackup').addEventListener('click', () => {
   try { downloadBackup(); }
@@ -293,7 +342,7 @@ function renderDynamicFilters() {
   if (signature === lastDynamicFilterSignature) return;
   lastDynamicFilterSignature = signature;
   if (!items.length) {
-    root.innerHTML = '<p class="help">Seleziona due esiti in almeno una partita doppia. I filtri delle fisse non compaiono perché un esito fisso è presente in tutte le colonne e non può ridurre il sistema.</p>'; 
+    root.innerHTML = '<p class="help">Seleziona due esiti in almeno una partita doppia. Le due quote possono appartenere anche a mercati diversi. I filtri delle fisse non compaiono perché un esito fisso è presente in tutte le colonne e non può ridurre il sistema.</p>'; 
     return;
   }
   root.innerHTML = items.map((item, index) => {
@@ -357,7 +406,7 @@ function renderMatches() {
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
     <th class="quote-team quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-team quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}<th class="quote-fixed-head quote-meta-col quote-meta-head quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Avv.</th>
-    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote dello stesso mercato formano automaticamente una <strong>doppia</strong>. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
+    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
   if (focused) {
@@ -402,8 +451,11 @@ function collectFilters() {
 function getPreflightReport() {
   const errors = [];
   const warnings = [];
-  const stake = Number($('stake').value);
-  if (!Number.isFinite(stake) || stake < 0.01) errors.push('La puntata per colonna deve essere almeno 0,01 €.');
+  const budgetMode = $('stakeMode').value === 'total-budget';
+  const amount = Number(budgetMode ? $('systemBudget').value : $('stake').value);
+  if (!Number.isFinite(amount) || amount < 0.01 || amount > 100000) errors.push(budgetMode
+    ? 'Il budget totale deve essere compreso tra 0,01 € e 100.000,00 €.'
+    : 'La puntata per colonna deve essere compresa tra 0,01 € e 100.000,00 €.');
   const active = state.matches.filter(match => (match.selezionati || []).length > 0);
   if (!active.length) errors.push('Seleziona almeno un esito prima di generare.');
   if (active.length > MAX_MATCHES) errors.push(`Sono selezionate ${active.length} partite: il limite è ${MAX_MATCHES}.`);
@@ -422,7 +474,6 @@ function getPreflightReport() {
     if (selected.length !== selectedKeys.length) errors.push(`La partita ${match.casa} – ${match.trasferta} contiene una selezione non collegata a una quota.`);
     if (!selected.length) errors.push(`La partita ${match.casa} – ${match.trasferta} non ha esiti validi selezionati.`);
     if (selected.length > 2) errors.push(`La partita ${match.casa} – ${match.trasferta} supera il limite di due esiti.`);
-    if (selected.length === 2 && selectionMarketKey(selected[0]) !== selectionMarketKey(selected[1])) errors.push(`La doppia ${match.casa} – ${match.trasferta} deve contenere due esiti dello stesso mercato.`);
     for (const outcome of selected) {
       if (!Number.isFinite(Number(outcome.quota)) || Number(outcome.quota) <= 1) errors.push(`Quota mancante o non valida: ${match.casa} – ${match.trasferta}, ${outcome.label || outcome.outcome}.`);
     }
@@ -498,6 +549,7 @@ function updateCounter() {
       $('tableWrap').innerHTML = '<p class="empty-state">Sistema non aggiornato: correggi le selezioni prima di generare di nuovo.</p>';
       $('printTableWrap').innerHTML = ''; 
       $('summary').textContent = built.error;
+      renderStakePreview(0);
     }
     return;
   }
@@ -505,6 +557,7 @@ function updateCounter() {
   const filtered = applyFilters(result.colonne, collectFilters());
   $('beforeCount').textContent = result.colonne.length.toLocaleString('it-IT');
   $('afterCount').textContent = filtered.colonneDopo.toLocaleString('it-IT');
+  renderStakePreview(filtered.colonneDopo);
   if (state.lastGenerated) {
     state.rawColumns = result.colonne; state.finalColumns = filtered.colonne; state.exclusive = built.exclusive;
     renderTable();
@@ -512,17 +565,26 @@ function updateCounter() {
 }
 function renderTable() {
   const cols = state.finalColumns;
-  const stake = Math.max(0, Number($('stake').value) || 0);
-  $('exportCsv').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0;
+  const allocation = getStakeAllocation(cols.length);
+  renderStakePreview(cols.length);
+  $('exportCsv').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0 || !allocation.valid;
   // La stampa conserva tutte le combinazioni: quelle escluse dai filtri vengono grigiate.
-  $('printTable').disabled = state.rawColumns.length === 0;
+  $('printTable').disabled = state.rawColumns.length === 0 || !allocation.valid;
   if (!cols.length) {
     $('tableWrap').innerHTML = '<p class="empty-state">Nessuna colonna dopo i filtri. Modifica i filtri. La stampa colonne resta disponibile e mostrerà in grigio tutte le colonne escluse.</p>';
     $('printTableWrap').innerHTML = '';
-    $('summary').textContent = `Colonne sviluppate: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne considerate: 0 · Colonne escluse dai filtri: ${state.rawColumns.length.toLocaleString('it-IT')} · Puntata totale considerata: ${formatEuro(0)}.`;
+    const zeroCost = allocation.mode === 'total-budget' ? `Budget impostato: ${formatEuro(allocation.inputBudget || 0)} · Spesa effettiva: ${formatEuro(0)} · Residuo non utilizzato: ${formatEuro(allocation.residue || 0)}` : `Puntata totale considerata: ${formatEuro(0)}`;
+    $('summary').textContent = `Colonne sviluppate: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne considerate: 0 · Colonne escluse dai filtri: ${state.rawColumns.length.toLocaleString('it-IT')} · ${zeroCost}.`;
     return;
   }
-  const totalStake = cols.length * stake;
+  if (!allocation.valid) {
+    $('tableWrap').innerHTML = `<p class="empty-state">${escapeHtml(allocation.error)} Modifica il budget o i filtri e riprova.</p>`;
+    $('printTableWrap').innerHTML = '';
+    $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Budget non sufficiente per assegnare almeno 0,01 € a ogni colonna. Le esportazioni economiche sono disattivate finché la puntata non è valida.`;
+    return;
+  }
+  const stake = allocation.perColumn;
+  const totalStake = allocation.total;
   const bonusOn = $('sisalBonus')?.checked;
   const bonusRate = c => {
     // La FAQ Sisal descrive un fattore 1,04 dal quinto evento idoneo; stima limitata al 177%.
@@ -538,11 +600,14 @@ function renderTable() {
   const minReturn = Math.min(...returns), maxReturn = Math.max(...returns);
   const approx = cols.some(c => c.esiti.some(e => e.probFair === false));
   const hit = state.exclusive ? cols.reduce((t, c) => t + c.prob, 0) : null;
-  const expected = state.exclusive ? cols.reduce((t, c) => t + c.prob * c.quotaTotale * stake, 0) / totalStake : null;
-  const probLine = hit !== null
-    ? ` Stima probabilità che almeno una colonna vinca: ${(Math.min(hit, 1) * 100).toLocaleString('it-IT', { maximumFractionDigits: 1 })}% · ritorno atteso (senza bonus) ${(expected * 100).toLocaleString('it-IT', { maximumFractionDigits: 0 })}% della puntata totale${approx ? ' · per alcune quote il mercato non è completo: aggio non rimosso, stima ottimistica' : ''}. Stime con partite indipendenti.`
-    : ' Probabilità complessiva non calcolata: la Doppia Chance rende le colonne non mutuamente esclusive.';
-  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Puntata totale del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.${probLine}`;
+  const expected = state.exclusive && totalStake > 0 ? cols.reduce((t, c) => t + c.prob * c.quotaTotale * stake, 0) / totalStake : null;
+  const probLine = hit !== null && expected !== null
+    ? ` Stima probabilità che almeno una colonna vinca: ${(Math.min(hit, 1) * 100).toLocaleString('it-IT', { maximumFractionDigits: 1 })}% · ritorno atteso (senza bonus) ${(expected * 100).toLocaleString('it-IT', { maximumFractionDigits: 0 })}% della spesa effettiva${approx ? ' · per alcune quote il mercato non è completo: aggio non rimosso, stima ottimistica' : ''}. Stime con partite indipendenti.`
+    : ' Probabilità complessiva non calcolata: la Doppia Chance o le doppie che combinano mercati diversi possono generare colonne non mutuamente esclusive.';
+  const allocationText = allocation.mode === 'total-budget'
+    ? `Budget impostato: ${formatEuro(allocation.inputBudget)} · Puntata effettiva/colonna: ${formatEuro(stake)} · Residuo non utilizzato: ${formatEuro(allocation.residue)}`
+    : `Puntata/colonna: ${formatEuro(stake)}`;
+  $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · ${allocationText} · Spesa effettiva del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.${probLine}`;
   const rows = cols.map((c, i) => `<tr><td data-label="Colonna n.">${c.id}</td><td data-label="Esiti selezionati">${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num" data-label="Quota totale">${formatQuota(c.quotaTotale)}</td><td class="num" data-label="Prob. implicita (con aggio)">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Prob. stimata (senza aggio)">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Bonus stimato">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num" data-label="Ritorno lordo stimato">${formatEuro(returns[i])}</td><td class="num" data-label="Profitto teorico stimato">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
   $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
@@ -553,8 +618,10 @@ function buildPrintTable() {
   const classifiedColumns = classifyColumns(allCols, state.finalColumns);
   const includedCount = classifiedColumns.filter(item => item.included).length;
   const excludedCount = Math.max(0, allCols.length - includedCount);
-  const stake = Math.max(0, Number($('stake').value) || 0);
-  const totalStake = includedCount * stake;
+  const allocation = getStakeAllocation(includedCount);
+  if (!allocation.valid) { $('printTableWrap').innerHTML = ''; status(allocation.error, 'error'); return; }
+  const stake = allocation.perColumn;
+  const totalStake = allocation.total;
   const activeEvents = readEvents();
   const printHeaders = activeEvents.map((event, index) => `<th title="${escapeHtml(event.nome)}"><span class="print-column-header">${index + 1}. ${escapeHtml(event.nome)}</span></th>`).join('');
   const printMethodNote = '<span class="print-method-note">Vincita netta = quota × puntata − puntata; bonus esclusi.</span>';
@@ -577,7 +644,7 @@ function buildPrintTable() {
     }).join('');
     return `<section class="print-page-table" data-print-page="${pageIndex + 1}" data-print-rows="${pageRows.length}">
       <h1 class="print-title">Sistema Scommesse Builder — colonne</h1>
-      <p class="print-meta">Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · Puntata/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}</p>
+      <p class="print-meta">Foglio ${pageIndex + 1}/${pages.length} · Colonne ${firstId}–${lastId} · Totale sviluppate ${allCols.length} · considerate ${includedCount} · escluse ${excludedCount} · ${getStakeModeLabel(allocation)}/colonna ${formatEuro(stake)} · Costo sistema ridotto ${formatEuro(totalStake)}${allocation.mode === 'total-budget' ? ` · Budget ${formatEuro(allocation.inputBudget)} · Residuo ${formatEuro(allocation.residue)}` : ''}</p>
       ${pageIndex === 0 ? legend : ''}
       <table class="print-results-table"><thead><tr><th>N°</th>${printHeaders}<th>Quota totale</th><th>Vincita netta</th></tr></thead><tbody>${printRows}</tbody></table>
     </section>`;
@@ -782,7 +849,10 @@ $('matches').addEventListener('click', event => {
   $('printTableWrap').innerHTML = '';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   renderMatches(); saveState(); updateCounter();
-  if (match.selezionati.length === 2) status(`Doppia automatica: ${match.casa} – ${match.trasferta}, mercato ${outcome.market}.`, 'success');
+  if (match.selezionati.length === 2) {
+    const selectedLabels = match.selezionati.map(key => match.esiti.find(item => `${item.market}:${item.outcome}` === key)?.label || key);
+    status(`Doppia automatica: ${match.casa} – ${match.trasferta}: ${selectedLabels.join(' + ')} (sono ammesse anche quote di mercati diversi).`, 'success');
+  }
   else if (match.selezionati.length === 1) {
     const fixedKey = match.selezionati[0];
     const fixedOutcome = match.esiti.find(item => `${item.market}:${item.outcome}` === fixedKey);
@@ -802,17 +872,32 @@ $('dynamicFilters').addEventListener('input', event => {
 });
 // Con 1.024 colonne il ridisegno costa mezzo secondo: lo si fa a fine digitazione, non a ogni tasto.
 let stakeRenderTimeout = null;
-$('stake').addEventListener('input', () => {
+function scheduleStakeUpdate() {
   clearTimeout(stakeSaveTimeout);
   stakeSaveTimeout = setTimeout(saveState, 250);
   clearTimeout(stakeRenderTimeout);
-  stakeRenderTimeout = setTimeout(() => { if (state.lastGenerated) renderTable(); }, 300);
-});
-$('stake').addEventListener('change', () => {
-  clearTimeout(stakeSaveTimeout);
-  clearTimeout(stakeRenderTimeout);
+  stakeRenderTimeout = setTimeout(() => {
+    updateStakeModeVisibility();
+    if (state.lastGenerated) renderTable();
+    else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
+  }, 180);
+}
+for (const id of ['stake', 'systemBudget']) {
+  $(id).addEventListener('input', scheduleStakeUpdate);
+  $(id).addEventListener('change', () => {
+    clearTimeout(stakeSaveTimeout);
+    clearTimeout(stakeRenderTimeout);
+    updateStakeModeVisibility();
+    saveState();
+    if (state.lastGenerated) renderTable();
+    else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
+  });
+}
+$('stakeMode').addEventListener('change', () => {
+  updateStakeModeVisibility();
   saveState();
   if (state.lastGenerated) renderTable();
+  else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
 });
 $('sisalBonus').addEventListener('change', () => { saveState(); if (state.lastGenerated) renderTable(); });
 $('generate').addEventListener('click', () => {
@@ -838,18 +923,24 @@ Vuoi procedere comunque?`)) return;
   status('Sistema generato. Puoi esportare il CSV leggibile, stampare il sistema integrale o le singole colonne.', 'success');
 });
 $('exportCsv').addEventListener('click', () => {
-  if (refreshGeneratedColumnsNow() && state.finalColumns.length) exportCSV(state.finalColumns);
+  if (!refreshGeneratedColumnsNow() || !state.finalColumns.length) return;
+  const allocation = getStakeAllocation(state.finalColumns.length);
+  if (allocation.valid) exportCSV(state.finalColumns, allocation);
 });
 $('exportText').addEventListener('click', () => {
-  if (refreshGeneratedColumnsNow() && state.finalColumns.length) exportText(state.finalColumns, Math.max(0, Number($('stake').value) || 0));
+  if (!refreshGeneratedColumnsNow() || !state.finalColumns.length) return;
+  const allocation = getStakeAllocation(state.finalColumns.length);
+  if (allocation.valid) exportText(state.finalColumns, allocation.perColumn, allocation);
 });
 $('printTable').addEventListener('click', () => {
   if (!refreshGeneratedColumnsNow() || !state.rawColumns.length) return;
+  if (!getStakeAllocation(state.finalColumns.length).valid) return;
   buildPrintTable();
+  if (!$('printTableWrap').children.length) return;
   stampaTabella();
 });
-function integralRangeMarkup(title, range, isReduced = false) {
-  if (!range) return `<section class="integral-range"><h3>${escapeHtml(title)}</h3><p class="integral-range-empty">Nessuna colonna disponibile con i filtri attuali.</p></section>`;
+function integralRangeMarkup(title, range, isReduced = false, emptyMessage = 'Nessuna colonna disponibile con i filtri attuali.') {
+  if (!range) return `<section class="integral-range"><h3>${escapeHtml(title)}</h3><p class="integral-range-empty">${escapeHtml(emptyMessage)}</p></section>`;
   return `<section class="integral-range ${isReduced ? 'integral-range-reduced' : ''}">
     <div class="integral-range-heading"><h3>${escapeHtml(title)}</h3></div>
     <div class="integral-metric-grid">
@@ -864,9 +955,17 @@ $('printIntegral').addEventListener('click', () => {
   if (!refreshGeneratedColumnsNow() || !state.finalColumns.length) return;
   const matches = state.matches.filter(m => (m.selezionati || []).length);
   const integral = $('integralPrint');
-  const stake = Math.max(0, Number($('stake').value) || 0);
-  const fullRange = summarizeColumnRange(state.rawColumns, stake);
-  const reducedRange = summarizeColumnRange(state.finalColumns, stake);
+  const allocation = getStakeAllocation(state.finalColumns.length);
+  if (!allocation.valid) { status(allocation.error, 'error'); return; }
+  const fullAllocation = getStakeAllocation(state.rawColumns.length);
+  const stake = allocation.perColumn;
+  // In modalità budget totale ogni scenario usa l'intero budget sul proprio numero di colonne:
+  // sistema integrale = tutte le colonne; sistema ridotto = solo quelle rimaste dopo i filtri.
+  const fullRange = fullAllocation.valid ? summarizeColumnRange(state.rawColumns, fullAllocation.perColumn) : null;
+  const reducedRange = summarizeColumnRange(state.finalColumns, allocation.perColumn);
+  const fullRangeEmptyMessage = fullAllocation.valid
+    ? 'Nessuna colonna disponibile con i filtri attuali.'
+    : `Il budget non consente di assegnare almeno 0,01 € a ognuna delle ${state.rawColumns.length.toLocaleString('it-IT')} colonne integrali.`;
   const choices = matches.map((m, i) => {
     const selected = (m.selezionati || []).map(key => m.esiti.find(o => `${o.market}:${o.outcome}` === key)).filter(Boolean);
     const usesHandicap = selected.some(outcome => selectionMarketKey(outcome) === 'handicap');
@@ -879,13 +978,13 @@ $('printIntegral').addEventListener('click', () => {
   integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark">SB</div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
     <div class="integral-section-title"><h2>Riepilogo delle selezioni</h2><span>Quota singola per esito</span></div>
     <div class="integral-match-list">${choices}</div>
-    <section class="integral-economics"><div class="integral-section-title"><h2>Quote e vincite minime / massime</h2><span>Importi teorici · senza bonus</span></div><div class="integral-ranges">${integralRangeMarkup('Sistema integrale', fullRange)}${integralRangeMarkup('Sistema ridotto', reducedRange, true)}</div>${sameRanges ? '<p class="integral-range-caption">In assenza di colonne escluse, il sistema integrale e quello ridotto coincidono.</p>' : '<p class="integral-range-caption">Il sistema integrale include tutte le combinazioni sviluppate; il ridotto considera soltanto quelle che superano i filtri.</p>'}</section>
-    <div class="integral-note"><strong>Nota di calcolo.</strong> Vincita netta = (quota totale × puntata per colonna) − puntata. Le cifre sono stime, non includono eventuali bonus e dipendono dalle quote effettive accettate.</div>
+    <section class="integral-economics"><div class="integral-section-title"><h2>Quote e vincite minime / massime</h2><span>Importi teorici · senza bonus</span></div><div class="integral-ranges">${integralRangeMarkup('Sistema integrale', fullRange, false, fullRangeEmptyMessage)}${integralRangeMarkup('Sistema ridotto', reducedRange, true)}</div>${sameRanges ? '<p class="integral-range-caption">In assenza di colonne escluse, il sistema integrale e quello ridotto coincidono.</p>' : '<p class="integral-range-caption">Il sistema integrale include tutte le combinazioni sviluppate; il ridotto considera soltanto quelle che superano i filtri.</p>'}</section>
+    <div class="integral-note"><strong>Nota di calcolo.</strong> Vincita netta = (quota totale × puntata effettiva per colonna) − puntata effettiva. Le cifre sono stime, non includono eventuali bonus e dipendono dalle quote effettive accettate.${allocation.mode === 'total-budget' ? ` Budget totale impostato: ${formatEuro(allocation.inputBudget)}. Sistema integrale: ${fullAllocation.valid ? `puntata effettiva/colonna ${formatEuro(fullAllocation.perColumn)}, spesa ${formatEuro(fullAllocation.total)}, residuo ${formatEuro(fullAllocation.residue)}` : `importo teorico/colonna ${formatEuroPrecise(fullAllocation.theoreticalPerColumn)}, ma budget insufficiente per giocare tutte le colonne a un minimo di 0,01 € ciascuna`}. Sistema ridotto: importo teorico/colonna ${formatEuroPrecise(allocation.theoreticalPerColumn)}, puntata effettiva/colonna ${formatEuro(allocation.perColumn)}, spesa ${formatEuro(allocation.total)}, residuo ${formatEuro(allocation.residue)}.` : ''}</div>
     <section class="integral-footer-summary" aria-label="Riepilogo colonne e spesa">
       <div class="integral-footer-metric"><span>Nr colonne massime giocabili:</span><strong>${state.rawColumns.length.toLocaleString('it-IT')}</strong></div>
       <div class="integral-footer-metric"><span>Colonne Giocate (se ridotto):</span><strong>${state.finalColumns.length.toLocaleString('it-IT')}</strong></div>
-      <div class="integral-footer-metric"><span>Quota per colonna:</span><strong>${formatEuro(stake)}</strong></div>
-      <div class="integral-footer-metric"><span>Totale Spesa:</span><strong>${formatEuro(state.finalColumns.length * stake)}</strong></div>
+      <div class="integral-footer-metric"><span>Quota per colonna effettiva:</span><strong>${formatEuro(stake)}</strong></div>
+      <div class="integral-footer-metric"><span>Totale Spesa effettiva:</span><strong>${formatEuro(allocation.total)}</strong></div>
     </section>`;
   printWithMode('integral');
 });
@@ -997,21 +1096,24 @@ window.addEventListener('appinstalled', () => {
 $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
   state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
-  $('manualInput').value = ''; $('stake').value = '0.10';
+  $('manualInput').value = ''; $('stake').value = '0.10'; $('stakeMode').value = 'per-column'; $('systemBudget').value = '10.00'; updateStakeModeVisibility();
   state.outcomeFilterLimits = {};
   renderDynamicFilters();
   try { localStorage.removeItem(savedKey); } catch { /* storage non disponibile */ }
   renderMatches(); $('summary').textContent = 'Seleziona le quote dal foglio e genera il sistema.';
   $('printTableWrap').innerHTML = ''; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
   $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
+  renderStakePreview(0);
   $('printTableWrap').innerHTML = '';
   $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   status('Sistema azzerato.');
 });
 restoreState();
+updateStakeModeVisibility();
+renderStakePreview(0);
 renderTeamListEditor();
 updateSeasonReminder();
 if (state.matches.length) {
   renderMatches();
-  status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} vecchie doppie tra mercati diversi sono state convertite in fisse mantenendo la prima quota: controlla le selezioni.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
+  status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} selezioni non più valide sono state corrette: controlla il foglio quote.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
 }

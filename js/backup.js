@@ -1,4 +1,4 @@
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=integral-summary-v9-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=stake-budget-overlap-v10-20261023';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -98,10 +98,12 @@ export function validateBackupPayload(payload) {
   }
   const theme = data.theme === 'dark' ? 'dark' : 'light';
   const stake = validNumberString(data.stake, '0.10', 0, 100000, 'puntata');
+  const stakeMode = data.stakeMode === 'total-budget' ? 'total-budget' : 'per-column';
+  const systemBudget = validNumberString(data.systemBudget, '10.00', 0.01, 100000, 'budget totale');
 
   return {
     manualInput: asText(data.manualInput),
-    stake, matches, outcomeFilterLimits: limits, theme,
+    stake, stakeMode, systemBudget, matches, outcomeFilterLimits: limits, theme,
     sisalBonus: data.sisalBonus !== false,
     teamLines,
     reviewedSeason: asText(data.reviewedSeason, '').slice(0, 20),
