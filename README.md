@@ -1,11 +1,12 @@
 # Sistema Scommesse Builder
 
-## Novità versione 6 — griglia congelata e stampa rifinita
+## Novità versione 9 — riepilogo economico completo nella stampa integrale
 - **Foglio quote stile Excel**: le due squadre restano bloccate a sinistra anche sul desktop; le intestazioni dei mercati restano in alto durante lo scorrimento verticale. Data/ora scorrono dopo i nomi delle squadre, mentre Pal./Avv. sono nascosti negli schermi stretti per lasciare spazio alle quote. Lo scorrimento orizzontale rimane confinato al foglio.
 - **Stampa senza fogli vuoti**: orientamento controllato con un'unica regola `@page`; le pagine successive iniziano con `break-before`, senza interruzione forzata dopo l'ultima. La nota di calcolo è nella prima pagina e non può creare una pagina finale quasi vuota.
 - **32 combinazioni per foglio**: esattamente 32 righe per A4 orizzontale; dalla combinazione 33 si passa al foglio successivo. Le 1.024 combinazioni generano 32 pagine, non 33.
-- **Sistema integrale più curato**: intestazione verde, badge per fisse/doppie, quote senza chiocciole e riepilogo economico finale con quota minima/massima e vincita netta minima/massima sia per il sistema integrale sia per quello ridotto.
-- **Verifiche**: test automatizzati aggiornati; PDF di prova con 32, 33, 70 e 1.024 righe e riepilogo integrale di 10 partite. L'impaginazione di prova rispetta 1, 2, 3, 32 e 1 pagina rispettivamente. Il collaudo nativo sul Samsung e sulla stampante resta necessario perché il print manager Android può applicare opzioni proprie.
+- **Sistema integrale più curato**: intestazione verde, badge per fisse/doppie, quote senza chiocciole e riepilogo economico con quota minima/massima e vincita netta minima/massima sia per il sistema integrale sia per quello ridotto.
+- **Nuovo riepilogo finale**: in fondo alla stampa integrale compaiono colonne massime giocabili, colonne giocate se ridotto, puntata per colonna e spesa totale. I conteggi non vengono ripetuti nell’intestazione né nei titoli dei riepiloghi min/max.
+- **Verifiche**: test automatizzati aggiornati; la regressione controlla i nuovi campi e i duplicati. Il collaudo nativo su Android e sulla stampante resta utile perché il print manager può applicare opzioni proprie.
 
 ## Novità versione 3
 - **Foglio quote**: dopo ogni tocco lo scorrimento orizzontale e il focus restano dove sono (prima tornavano a sinistra); colonne squadra più strette su smartphone, così si vedono più quote.
@@ -24,7 +25,7 @@ Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazion
 4. Salva e attendi la pubblicazione.
 5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**: l'icona usa la stessa mascotte La(a)rfleeze già impiegata in Cammafà.
 6. Su Android, apri il collegamento **Apri / scarica PDF ufficiale Sisal**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
-7. In alternativa, incolla i dati nella sezione manuale, che resta sempre visibile; l'importazione diretta da URL è solo un tentativo facoltativo perché CORS può impedirla.
+7. In alternativa, incolla i dati nella sezione manuale, che resta sempre disponibile.
 8. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra dello stesso mercato formano una doppia; il valore numerico H dell’handicap è informativo e non cliccabile. Imposta i filtri e premi **Genera sistema**.
 9. Esporta CSV/testo oppure stampa la tabella.
 
@@ -51,10 +52,9 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 5. Crea quattro doppie selezionando Over 2.5 e Under 2.5 in ognuna; imposta “Over 2.5 · Max = 3” e verifica che restino le colonne con non più di tre Over.
 6. Esporta CSV e aprilo con un foglio di calcolo: devono esserci intestazioni e celle correttamente quotate.
 7. Usa “Stampa colonne”: mostra tutte le combinazioni sviluppate; quelle considerate dai filtri restano normali, quelle escluse hanno sfondo grigio. Le fisse sono in grassetto e, a destra, compaiono soltanto quota totale e vincita netta. Il layout usa A4 orizzontale: esattamente 32 combinazioni per foglio; dalla 33ª combinazione si passa al foglio successivo. Fino a 1.024 combinazioni sono quindi suddivise automaticamente in un massimo di 32 fogli. “Stampa sistema integrale” è impaginata in A4 verticale e va controllata con il numero di partite selezionate.
-8. Prova l'URL Sisal: se CORS lo consente, il parser importa esclusivamente le righe della sezione Serie A che rispettano la struttura prevista.
-9. Prova un URL irraggiungibile o un URL con CORS bloccato: deve apparire il messaggio che indirizza al download locale, mentre input manuale e selezione file restano disponibili.
-10. Prova la stampa con 33 combinazioni: il primo foglio deve contenere 32 righe e il secondo una sola; con 1.024 combinazioni devono risultare 32 fogli.
-11. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
+8. Prova la stampa con 33 combinazioni: il primo foglio deve contenere 32 righe e il secondo una sola; con 1.024 combinazioni devono risultare 32 fogli.
+9. Nella stampa integrale verifica che i quattro campi finali compaiano una sola volta e che la spesa totale corrisponda a puntata per colonna × colonne considerate.
+10. Da Android, apri il link ufficiale, scegli **Scarica**, poi usa il selettore file della sezione PDF e scegli il bollettino nella cartella Download/Scaricati.
 
 ## Limiti e uso da smartphone
 L’app è ottimizzata per schermi mobili, compreso Samsung Galaxy A27 5G: controlli touch più ampi, campi e pulsanti adattivi, risultati in schede verticali senza scorrimento orizzontale dell’intera pagina. Solo il foglio quote mantiene lo scorrimento orizzontale, indipendentemente dalla larghezza dello schermo. Le due colonne squadra rimangono congelate a sinistra e le intestazioni dei mercati restano in alto mentre si scorre verticalmente. Il limite è rigido: massimo 10 partite selezionate (se ne possono caricare fino a 30, ad esempio da un PDF con più turni) e 2 esiti per partita. Il sistema integrale può quindi avere al massimo 2¹⁰ = 1.024 colonne; non è configurabile oltre questo valore. Il generatore rifiuta anche richieste che superino i limiti strutturali, indipendentemente dall’interfaccia.

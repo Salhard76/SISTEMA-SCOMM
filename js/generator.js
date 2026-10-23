@@ -1,6 +1,6 @@
 /* Generatore con limiti strutturali: massimo 10 partite, 2 esiti per partita e 1.024 colonne. */
-import { quotaTotale } from './calculator.js?v=android-print-v8-20261023';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=android-print-v8-20261023';
+import { quotaTotale } from './calculator.js?v=integral-summary-v9-20261023';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=integral-summary-v9-20261023';
 
 export { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS };
 

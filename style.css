@@ -382,5 +382,9 @@ body.info-dialog-fallback::after{content:"";position:fixed;inset:0;background:rg
   body[data-print-mode="integral"] .integral-range-empty{margin:0!important;font-size:6.5pt!important;color:#60776c!important}
   body[data-print-mode="integral"] .integral-note{margin-top:2mm!important;padding:1.3mm 1.6mm!important;border-left:1mm solid #7bac94!important;background:#f2f8f4!important;font-size:6pt!important;line-height:1.15!important;color:#476458!important;break-inside:avoid!important;page-break-inside:avoid!important}
   body[data-print-mode="integral"] .integral-note strong{color:#153e2f!important}
+  body[data-print-mode="integral"] .integral-footer-summary{display:grid!important;grid-template-columns:1.3fr 1.3fr 1fr 1.1fr!important;gap:1.5mm!important;margin-top:2.4mm!important;padding:2mm!important;border-top:1mm solid #087653!important;background:#edf7f1!important;break-inside:avoid!important;page-break-inside:avoid!important}
+  body[data-print-mode="integral"] .integral-footer-metric{display:flex!important;min-width:0!important;flex-direction:column!important;justify-content:center!important;gap:.7mm!important;padding:1mm!important}
+  body[data-print-mode="integral"] .integral-footer-metric span{font-size:5.7pt!important;line-height:1.08!important;color:#4e6c5d!important}
+  body[data-print-mode="integral"] .integral-footer-metric strong{font-size:9pt!important;line-height:1.1!important;color:#12392d!important;font-weight:900!important;font-variant-numeric:tabular-nums!important;overflow-wrap:anywhere!important}
   body[data-print-mode="integral"] main,body[data-print-mode="integral"] .site-header,body[data-print-mode="integral"] .site-footer{display:none!important}
 }

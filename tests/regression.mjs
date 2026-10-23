@@ -52,6 +52,7 @@ test('UI: rimosse le tre soglie statiche e presente la tabella dedicata alla sta
 test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e ridotto', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /@page\{size:A4 portrait;margin:0\}/);
+  assert.match(css, /integral-footer-summary\{display:grid!important;grid-template-columns:1\.3fr 1\.3fr 1fr 1\.1fr!important/);
   assert.match(pageJs, /<th>Quota totale<\/th><th>Vincita netta<\/th>/);
   assert.match(pageJs, /event\.tipo === 'fissa' \? `<strong>/);
   assert.match(pageJs, /const usesHandicap = selected\.some\(outcome => selectionMarketKey\(outcome\) === 'handicap'\)/);
@@ -62,6 +63,13 @@ test('Stampa integrale: design economico e riepilogo min/max per sistema pieno e
   assert.match(pageJs, /Quota massima/);
   assert.match(pageJs, /Vincita netta minima/);
   assert.match(pageJs, /Vincita netta massima/);
+  assert.match(pageJs, /Nr colonne massime giocabili/);
+  assert.match(pageJs, /Colonne Giocate \(se ridotto\)/);
+  assert.match(pageJs, /Quota per colonna/);
+  assert.match(pageJs, /Totale Spesa/);
+  assert.match(pageJs, /formatEuro\(state\.finalColumns\.length \* stake\)/);
+  assert.doesNotMatch(pageJs, /range\.count\.toLocaleString\('it-IT'\)\} colonne/, 'i conteggi del footer non si ripetono nei titoli dei riepiloghi');
+  assert.doesNotMatch(pageJs, /colonne sviluppate · \$\{state\.finalColumns\.length/, 'i conteggi non si ripetono nell’intestazione');
   assert.match(pageJs, /<span class="integral-outcome"><span>\$\{escapeHtml\(o\.label\)\}<\/span><strong>\$\{formatQuota\(o\.quota\)\}<\/strong>/);
   assert.doesNotMatch(pageJs, /<b>@ \$\{formatQuota\(o\.quota\)\}<\/b>/, 'la stampa integrale non usa chiocciole come prefisso delle quote');
   assert.doesNotMatch(pageJs, /fixedOutcome\?\.label \|\| ''\} @ \$\{formatQuota/);

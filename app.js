@@ -1,13 +1,13 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=android-print-v8-20261023';
-import { generateSystem } from './js/generator.js?v=android-print-v8-20261023';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=android-print-v8-20261023';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=android-print-v8-20261023';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=android-print-v8-20261023';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=android-print-v8-20261023';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=android-print-v8-20261023';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=android-print-v8-20261023';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=android-print-v8-20261023';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=android-print-v8-20261023';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=integral-summary-v9-20261023';
+import { generateSystem } from './js/generator.js?v=integral-summary-v9-20261023';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=integral-summary-v9-20261023';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=integral-summary-v9-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=integral-summary-v9-20261023';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=integral-summary-v9-20261023';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=integral-summary-v9-20261023';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=integral-summary-v9-20261023';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=integral-summary-v9-20261023';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=integral-summary-v9-20261023';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -851,7 +851,7 @@ $('printTable').addEventListener('click', () => {
 function integralRangeMarkup(title, range, isReduced = false) {
   if (!range) return `<section class="integral-range"><h3>${escapeHtml(title)}</h3><p class="integral-range-empty">Nessuna colonna disponibile con i filtri attuali.</p></section>`;
   return `<section class="integral-range ${isReduced ? 'integral-range-reduced' : ''}">
-    <div class="integral-range-heading"><h3>${escapeHtml(title)}</h3><span>${range.count.toLocaleString('it-IT')} colonne</span></div>
+    <div class="integral-range-heading"><h3>${escapeHtml(title)}</h3></div>
     <div class="integral-metric-grid">
       <div class="integral-metric"><span>Quota minima</span><strong>${formatQuota(range.minQuota)}</strong></div>
       <div class="integral-metric"><span>Quota massima</span><strong>${formatQuota(range.maxQuota)}</strong></div>
@@ -876,11 +876,17 @@ $('printIntegral').addEventListener('click', () => {
     return `<article class="integral-match ${kind}"><span class="integral-number">${i+1}</span><div class="integral-match-content"><div class="integral-match-heading"><strong>${escapeHtml(m.casa)} <span class="integral-versus">–</span> ${escapeHtml(m.trasferta)}</strong><em>${selected.length === 2 ? 'DOPPIA' : 'FISSA'}</em></div><small>${escapeHtml(meta || 'Dettagli partita non disponibili')}</small><div class="integral-outcomes">${outcomeChips}</div></div></article>`;
   }).join('');
   const sameRanges = state.rawColumns.length === state.finalColumns.length;
-  integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark">SB</div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1><p class="integral-subtitle">${matches.length} partite selezionate · ${state.rawColumns.length.toLocaleString('it-IT')} colonne sviluppate · ${state.finalColumns.length.toLocaleString('it-IT')} considerate · Puntata per colonna ${formatEuro(stake)}</p></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
+  integral.innerHTML = `<header class="integral-header"><div class="integral-brand-mark">SB</div><div class="integral-heading"><p class="integral-overline">SISTEMA SCOMMESSE BUILDER</p><h1>Sistema integrale</h1></div><div class="integral-count"><strong>${matches.length}</strong><span>PARTITE</span></div></header>
     <div class="integral-section-title"><h2>Riepilogo delle selezioni</h2><span>Quota singola per esito</span></div>
     <div class="integral-match-list">${choices}</div>
     <section class="integral-economics"><div class="integral-section-title"><h2>Quote e vincite minime / massime</h2><span>Importi teorici · senza bonus</span></div><div class="integral-ranges">${integralRangeMarkup('Sistema integrale', fullRange)}${integralRangeMarkup('Sistema ridotto', reducedRange, true)}</div>${sameRanges ? '<p class="integral-range-caption">In assenza di colonne escluse, il sistema integrale e quello ridotto coincidono.</p>' : '<p class="integral-range-caption">Il sistema integrale include tutte le combinazioni sviluppate; il ridotto considera soltanto quelle che superano i filtri.</p>'}</section>
-    <div class="integral-note"><strong>Nota di calcolo.</strong> Vincita netta = (quota totale × puntata per colonna) − puntata. Le cifre sono stime, non includono eventuali bonus e dipendono dalle quote effettive accettate.</div>`;
+    <div class="integral-note"><strong>Nota di calcolo.</strong> Vincita netta = (quota totale × puntata per colonna) − puntata. Le cifre sono stime, non includono eventuali bonus e dipendono dalle quote effettive accettate.</div>
+    <section class="integral-footer-summary" aria-label="Riepilogo colonne e spesa">
+      <div class="integral-footer-metric"><span>Nr colonne massime giocabili:</span><strong>${state.rawColumns.length.toLocaleString('it-IT')}</strong></div>
+      <div class="integral-footer-metric"><span>Colonne Giocate (se ridotto):</span><strong>${state.finalColumns.length.toLocaleString('it-IT')}</strong></div>
+      <div class="integral-footer-metric"><span>Quota per colonna:</span><strong>${formatEuro(stake)}</strong></div>
+      <div class="integral-footer-metric"><span>Totale Spesa:</span><strong>${formatEuro(state.finalColumns.length * stake)}</strong></div>
+    </section>`;
   printWithMode('integral');
 });
 // Finestra Info: dialog nativo, chiudibile da pulsante, backdrop o tasto Esc.

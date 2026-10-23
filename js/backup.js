@@ -1,4 +1,4 @@
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=android-print-v8-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=integral-summary-v9-20261023';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
