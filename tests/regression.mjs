@@ -34,6 +34,15 @@ test('Stampa Android: la modalità non viene cancellata da afterprint prima dell
   assert.match(exporter, /else \{\n    window\.addEventListener\('afterprint', clear, \{ once: true \}\);/);
 });
 
+test('Info: firma stilizzata SalHard accessibile e autore dichiarato', () => {
+  assert.match(pageHtml, /<meta name="author" content="SalHard">/);
+  assert.match(pageHtml, /class="info-author"[^>]*aria-label="Autore dell'applicazione: SalHard"/);
+  assert.match(pageHtml, /<svg class="info-author-signature" viewBox="0 0 190 62" role="img"/);
+  assert.match(pageHtml, /<title id="salhardSignatureTitle">Firma stilizzata dell'autore SalHard<\/title>/);
+  assert.match(pageHtml, /<text x="8" y="43">SalHard<\/text>/);
+  assert.match(readFileSync(new URL('../style.css', import.meta.url), 'utf8'), /\.info-author-signature text[^{]*\{[^}]*cursive/s);
+});
+
 test('UI: pulsante Info accessibile collegato alla finestra guida', () => {
   assert.match(pageHtml, /id="infoButton"[^>]*aria-haspopup="dialog"[^>]*aria-controls="infoDialog"/);
   assert.match(pageHtml, /<dialog id="infoDialog"[^>]*aria-labelledby="infoTitle"/);

@@ -1,5 +1,10 @@
 # Sistema Scommesse Builder
 
+## Novità versione 11 — firma autore e cache coerente
+- **Firma SalHard nelle Info**: aggiunta una firma stilizzata in SVG, accessibile e adattiva, coerente con i colori del tema chiaro/scuro e leggibile su smartphone.
+- **Cache-busting aggiornato**: identificatore univoco `?v=` aggiornato in tutti i moduli e nelle risorse dell'interfaccia, per evitare che il browser riutilizzi file della versione precedente dopo l'aggiornamento.
+- **Autore dichiarato nei metadati**: aggiunto `meta name="author"`.
+
 ## Novità versione 10 — budget totale e doppie tra mercati
 - **Due modalità di puntata**: importo per colonna oppure budget totale ripartito sulle colonne effettivamente rimaste dopo i filtri. Nel budget totale la quota per colonna viene arrotondata per difetto ai centesimi; il residuo è mostrato e la spesa non supera il budget. I calcoli economici vengono aggiornati quando cambiano colonne, filtri o modalità.
 - **Doppie tra mercati**: oltre a due quote dello stesso mercato, è possibile selezionare due quote di mercati diversi sulla stessa partita (es. 1 + X2 o 1 + Over 2.5). Restano al massimo due scelte per partita e 1.024 colonne per il sistema integrale. In questi sistemi la probabilità che almeno una colonna vinca non viene sommata automaticamente, perché le selezioni possono sovrapporsi.

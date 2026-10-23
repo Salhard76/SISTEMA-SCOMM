@@ -1,6 +1,6 @@
 /* Generatore con limiti strutturali: massimo 10 partite, 2 esiti per partita e 1.024 colonne. */
-import { quotaTotale } from './calculator.js?v=stake-budget-overlap-v10-20261023';
-import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=stake-budget-overlap-v10-20261023';
+import { quotaTotale } from './calculator.js?v=salhard-signature-v11-20261023';
+import { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './config.js?v=salhard-signature-v11-20261023';
 
 export { MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS };
 

@@ -1,5 +1,5 @@
 /* Selezione quote: 1 quota = fissa; 2 quote, anche di mercati diversi, = doppia del sistema. */
-import { MAX_CHOICES_PER_MATCH } from './config.js?v=stake-budget-overlap-v10-20261023';
+import { MAX_CHOICES_PER_MATCH } from './config.js?v=salhard-signature-v11-20261023';
 
 export function selectionMarketKey(outcome) {
   const market = String(outcome?.market ?? '')

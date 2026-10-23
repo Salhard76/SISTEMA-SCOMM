@@ -1,14 +1,14 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=stake-budget-overlap-v10-20261023';
-import { generateSystem } from './js/generator.js?v=stake-budget-overlap-v10-20261023';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=stake-budget-overlap-v10-20261023';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=stake-budget-overlap-v10-20261023';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=stake-budget-overlap-v10-20261023';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=stake-budget-overlap-v10-20261023';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=stake-budget-overlap-v10-20261023';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=stake-budget-overlap-v10-20261023';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=stake-budget-overlap-v10-20261023';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=stake-budget-overlap-v10-20261023';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=stake-budget-overlap-v10-20261023';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=salhard-signature-v11-20261023';
+import { generateSystem } from './js/generator.js?v=salhard-signature-v11-20261023';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=salhard-signature-v11-20261023';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=salhard-signature-v11-20261023';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=salhard-signature-v11-20261023';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=salhard-signature-v11-20261023';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=salhard-signature-v11-20261023';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=salhard-signature-v11-20261023';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=salhard-signature-v11-20261023';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=salhard-signature-v11-20261023';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=salhard-signature-v11-20261023';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
