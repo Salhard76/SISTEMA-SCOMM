@@ -43,11 +43,11 @@ test('Info: firma stilizzata SalHard accessibile e autore dichiarato', () => {
   assert.match(readFileSync(new URL('../style.css', import.meta.url), 'utf8'), /\.info-author-signature text[^{]*\{[^}]*cursive/s);
 });
 
-test('Release v12: icone solo bianco/nero, marchio SB outline nelle stampe e versione aggiornata', () => {
+test('Release v13: parser quote mancanti, icone outline e versione aggiornata', () => {
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-outline-v12-20261023/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-outline-v13-20261026/);
   assert.match(pageJs, /class=\"integral-brand-mark\" role=\"img\" aria-label=\"Logo SB\"[^>]*><svg/);
   assert.match(pageJs, /class=\"print-sb-mark\" viewBox=\"0 0 64 64\"/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -776,6 +776,39 @@ test('Limiti: si possono caricare più partite di quelle selezionabili, ma non p
   assert.match(pageJs, /activeCount >= MAX_MATCHES/);
   assert.match(pageJs, /matches\.slice\(0, MAX_LOADED_MATCHES\)/);
 });
+test('Parser PDF: Venezia-Inter viene importata se manca una quota e le quote successive restano nella colonna corretta', async () => {
+  const values = [
+    7.50, 5.25, 1.33, 3.10, 3.75, 1.80, 3.20, 1.07, 1.14,
+    6.50, 1.07, 3.10, 1.33, 1.85, 1.80, 1.52, 2.40, 1.40, 2.60,
+    null, 11.00
+  ];
+  const rowY = 900;
+  const positioned = (str, x, y = rowY, width = String(str).length * 3.2) => ({
+    str, transform: [1, 0, 0, 1, x, y], width, height: 10
+  });
+  const quoteX = index => index < 3 ? 260.5 + index * 15 : 312.2 + (index - 3) * 15;
+  const items = [
+    pdfItem('ITA Serie A', 960),
+    positioned('28/10', 16.3), positioned('18.30', 39.2), positioned('36441', 59.6),
+    positioned('1446', 84.5), positioned('Venezia', 106.6), positioned('Inter', 179.3),
+    positioned('-1', 305.4),
+    ...values.flatMap((value, index) => value == null ? [] : [positioned(value.toFixed(2).replace('.', ','), quoteX(index))])
+  ];
+  globalThis.pdfjsLib = {
+    GlobalWorkerOptions: {},
+    getDocument: () => ({ promise: Promise.resolve({ numPages: 1, getPage: async () => ({ getTextContent: async () => ({ items }) }) }) })
+  };
+  const matches = await parseSisalPdf(new ArrayBuffer(0));
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].casa, 'Venezia');
+  assert.equal(matches[0].trasferta, 'Inter');
+  assert.equal(matches[0].esiti.length, 20);
+  assert.equal(matches[0].esiti.find(item => item.market === 'Segna Goal Ospite' && item.outcome === 'NO Ospite')?.quota, 11);
+  assert.equal(matches[0].esiti.some(item => item.market === 'Segna Goal Ospite' && item.outcome === 'SI Ospite'), false);
+  assert.deepEqual(matches.diagnostics.partialRows[0].missing, ['SI Ospite']);
+  assert.equal(matches.diagnostics.rejects.length, 0);
+});
+
 test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun taglio nel parser)', async () => {
   const teams = ['Atalanta','Bologna','Cagliari','Como','Fiorentina','Frosinone','Genoa','Inter','Juventus','Lazio','Lecce','Milan','Monza','Napoli','Parma','Roma','Sassuolo','Torino','Udinese','Venezia'];
   const rows = ['ITA Serie A'];
@@ -791,7 +824,7 @@ test('Release: versione ?v= unica in tutti i file e PDF.js incluso in vendor', (
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-outline-v12-20261023/);
+  assert.match(sw, /sb-outline-v13-20261026/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

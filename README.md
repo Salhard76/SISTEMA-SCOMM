@@ -1,5 +1,12 @@
 # Sistema Scommesse Builder
 
+## Novità versione 13 — importazione robusta delle quote mancanti
+- **Venezia–Inter non viene più scartata** quando nel PDF manca una singola quota di mercato. Il parser usa le coordinate delle colonne Sisal per conservare correttamente l'associazione tra quota e mercato; nell'esempio, la quota 11,00 resta in «No Ospite» e «Sì Ospite» rimane vuoto.
+- **Importazione parziale controllata**: i mercati per cui non è pubblicata una quota non diventano selezionabili. Se le coordinate non consentono un'associazione sicura, la riga viene ancora rifiutata piuttosto che spostare le quote in mercati sbagliati.
+- **Diagnostica più chiara**: segnala le partite importate con alcune quote mancanti, specificando i mercati coinvolti.
+- **Cache aggiornata**: identificatore di versione v13 per evitare il riutilizzo dei moduli v12.
+- **Verifiche**: aggiunto un test mirato a Venezia–Inter e alle colonne delle quote successive.
+
 ## Novità versione 12 — ottimizzazioni leggere, offline e icone outline
 - **Cache offline dell'app**: aggiunto un service worker che precachea HTML, CSS, moduli, PDF.js locale, elenco squadre e icone. Dopo la prima visita online su HTTPS (o localhost), la parte locale dell'app può riaprirsi offline; il collegamento Sisal e altri contenuti esterni restano online-only. Le quote non vengono inventate o aggiornate dalla cache.
 - **Icona in bianco e nero**: le icone PWA, touch e favicon sono state convertite in disegno a contorni neri su bianco. La variante maskable è ridotta per lasciare spazio al ritaglio del launcher; la favicon usa un monogramma SB semplificato per restare leggibile a 32 px.

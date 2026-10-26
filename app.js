@@ -1,14 +1,14 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-outline-v12-20261023';
-import { generateSystem } from './js/generator.js?v=sb-outline-v12-20261023';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-outline-v12-20261023';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-outline-v12-20261023';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-outline-v12-20261023';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-outline-v12-20261023';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sb-outline-v12-20261023';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-outline-v12-20261023';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-outline-v12-20261023';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-outline-v12-20261023';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-outline-v12-20261023';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-outline-v13-20261026';
+import { generateSystem } from './js/generator.js?v=sb-outline-v13-20261026';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-outline-v13-20261026';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-outline-v13-20261026';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-outline-v13-20261026';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-outline-v13-20261026';
+import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sb-outline-v13-20261026';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-outline-v13-20261026';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-outline-v13-20261026';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-outline-v13-20261026';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-outline-v13-20261026';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -491,13 +491,18 @@ function getPreflightReport() {
     const duplicates = Number(state.pdfDiagnostics.duplicateRows || 0);
     if (rejects > 0) {
       const teamRejects = (state.pdfDiagnostics.rejects || []).filter(row => row.reason === 'teams').length;
-      const quoteRejects = (state.pdfDiagnostics.rejects || []).filter(row => row.reason === 'quote_count' || row.reason === 'invalid_odds').length;
+      const quoteRejects = (state.pdfDiagnostics.rejects || []).filter(row => ['quote_count', 'quote_alignment', 'invalid_odds'].includes(row.reason)).length;
       let detail = '';
       if (teamRejects) detail += ` ${teamRejects} righe potrebbero avere nomi squadra non riconosciuti.`;
       if (quoteRejects) detail += ` ${quoteRejects} righe hanno quote mancanti o non valide.`;
       warnings.push(`Il PDF ha scartato ${rejects} righe.${detail} Apri la diagnostica PDF per controllare prima di proseguire.`);
     }
     if (duplicates > 0) warnings.push(`Il parser ha rimosso ${duplicates} riga/e duplicate dal PDF.`);
+    const partialRows = Array.isArray(state.pdfDiagnostics.partialRows) ? state.pdfDiagnostics.partialRows : [];
+    if (partialRows.length > 0) {
+      const examples = partialRows.slice(0, 2).map(row => `${row.casa} – ${row.trasferta} (${(row.missing || []).join(', ')})`).join('; ');
+      warnings.push(`${partialRows.length} partita/e importata/e con una o più quote assenti; i mercati senza quota restano vuoti e non selezionabili${examples ? `: ${examples}` : ''}.`);
+    }
   }
   return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
 }
@@ -722,28 +727,35 @@ function showPdfDiagnostics(diagnostics, importedCount = 0) {
   lines.push(`Righe dati esaminate: ${diagnostics.candidateRows}. Righe riconosciute: ${diagnostics.recognizedRows}. Partite disponibili dopo deduplicazione: ${diagnostics.importedRows ?? 0}. Partite caricate nell’app: ${importedCount}.`);
   if (diagnostics.seriesAFound && diagnostics.candidateRows === 0) lines.push('Non ho trovato righe dati nel formato atteso: il bollettino potrebbe avere un layout diverso o il testo potrebbe non essere estraibile.');
   if (diagnostics.duplicateRows) lines.push(`Righe duplicate scartate: ${diagnostics.duplicateRows}.`);
+  const partialRows = Array.isArray(diagnostics.partialRows) ? diagnostics.partialRows : [];
+  if (partialRows.length) {
+    const examples = partialRows.slice(0, 4).map(row => `${row.casa} – ${row.trasferta}: quote assenti per ${(row.missing || []).join(', ')}`);
+    lines.push(`${partialRows.length} partita/e importata/e con alcune quote assenti. I mercati senza quota restano vuoti e non selezionabili. ${examples.join(' | ')}.`);
+  }
   if (diagnostics.rejects?.length) {
     const quoteCounts = {};
-    let unknownTeams = 0, invalidOdds = 0, structure = 0;
+    let unknownTeams = 0, invalidOdds = 0, quoteAlignment = 0, structure = 0;
     for (const row of diagnostics.rejects) {
       if (row.reason === 'quote_count') quoteCounts[row.foundOdds] = (quoteCounts[row.foundOdds] || 0) + 1;
       else if (row.reason === 'teams') unknownTeams += 1;
       else if (row.reason === 'invalid_odds') invalidOdds += 1;
+      else if (row.reason === 'quote_alignment') quoteAlignment += 1;
       else structure += 1;
     }
     const details = [];
-    for (const [count, n] of Object.entries(quoteCounts)) details.push(`${n} riga/e con ${count} quote decimali (attese 21)`);
+    for (const [count, n] of Object.entries(quoteCounts)) details.push(`${n} riga/e con ${count} quote decimali rilevate (21 colonne previste)`);
     if (unknownTeams) details.push(`${unknownTeams} riga/e con nomi squadra non riconosciuti`);
     if (invalidOdds) details.push(`${invalidOdds} riga/e con quote non valide`);
+    if (quoteAlignment) details.push(`${quoteAlignment} riga/e con quote non associabili con sicurezza alle colonne`);
     if (structure) details.push(`${structure} riga/e con struttura inattesa`);
     lines.push(`Righe scartate: ${diagnostics.rejects.length}${details.length ? ` — ${details.join('; ')}` : ''}.`);
-    const examples = diagnostics.rejects.slice(0, 3).map(row => `${row.data}: ${row.reason === 'quote_count' ? `trovate ${row.foundOdds} quote, attese 21` : row.reason === 'teams' ? 'nomi squadra non riconosciuti' : row.reason === 'invalid_odds' ? 'quote non valide' : 'struttura non riconosciuta'}`);
+    const examples = diagnostics.rejects.slice(0, 3).map(row => `${row.data}: ${row.reason === 'quote_count' ? `trovate ${row.foundOdds} quote decimali` : row.reason === 'quote_alignment' ? 'posizioni delle quote non riconoscibili con sicurezza' : row.reason === 'teams' ? 'nomi squadra non riconosciuti' : row.reason === 'invalid_odds' ? 'quote non valide' : 'struttura non riconosciuta'}`);
     if (examples.length) lines.push(`Esempi: ${examples.join(' | ')}.`);
   } else if (diagnostics.seriesAFound && diagnostics.candidateRows > 0) {
     lines.push('Nessuna riga dati scartata per il formato.');
   }
   $('pdfDiagnosticsText').textContent = lines.join(' ');
-  $('pdfDiagnosticsSummary').textContent = `Diagnostica PDF · ${importedCount} partite caricate, ${diagnostics.rejects?.length || 0} righe scartate, ${diagnostics.duplicateRows || 0} duplicate`;
+  $('pdfDiagnosticsSummary').textContent = `Diagnostica PDF · ${importedCount} partite caricate, ${diagnostics.rejects?.length || 0} righe scartate, ${diagnostics.duplicateRows || 0} duplicate, ${(diagnostics.partialRows || []).length} con quote assenti`;
   panel.hidden = false;
 }
 
@@ -1123,7 +1135,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-outline-v12-20261023');
+  serviceWorkerUrl.searchParams.set('v', 'sb-outline-v13-20261026');
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(serviceWorkerUrl.href)
       .catch(error => console.warn('Cache offline non disponibile; l’app continua a funzionare online:', error));

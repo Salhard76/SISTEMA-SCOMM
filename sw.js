@@ -1,5 +1,5 @@
 /* Cache offline limitata alla shell dell'app. Le quote online non vengono inventate né cacheate da domini esterni. */
-const RELEASE = 'sb-outline-v12-20261023';
+const RELEASE = 'sb-outline-v13-20261026';
 const CACHE_NAME = `sistema-scommesse-builder-shell-${RELEASE}`;
 const CACHE_PREFIX = 'sistema-scommesse-builder-shell-';
 const VERSION_QUERY = `?v=${RELEASE}`;

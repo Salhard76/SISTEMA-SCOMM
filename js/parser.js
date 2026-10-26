@@ -234,7 +234,7 @@ function splitSerieATeams(teamText) {
   return null;
 }
 
-function parseSerieAPdfLine(line, diagnostics) {
+function parseSerieAPdfLine(line, diagnostics, rowItems = []) {
   const original = String(line || '').replace(/\s+/g, ' ').trim();
   if (!original) return null;
 
@@ -257,21 +257,87 @@ function parseSerieAPdfLine(line, diagnostics) {
   const body = header[5];
   const odds = [...body.matchAll(/\b\d{1,3}[.,]\d{1,3}\b/g)];
   // Handicap è un intero (1 / -1), quindi non entra nella lista delle quote decimali.
-  if (odds.length !== SERIE_A_COLUMNS.length) return reject('quote_count', { foundOdds: odds.length });
+  if (odds.length < 3 || odds.length > SERIE_A_COLUMNS.length) {
+    return reject('quote_count', { foundOdds: odds.length });
+  }
 
-  const handicapRaw = body.slice(odds[2].index + odds[2][0].length, odds[3].index).trim();
+  const handicapRaw = odds.length >= 4
+    ? body.slice(odds[2].index + odds[2][0].length, odds[3].index).trim()
+    : '';
   const handicap = /^[+-]?\d+$/.test(handicapRaw) ? handicapRaw : '';
   const teamText = body.slice(0, odds[0].index).trim();
   const teams = splitSerieATeams(teamText);
   if (!teams) return reject('teams', { foundOdds: odds.length });
 
-  const esiti = odds.map((m, i) => ({
-    label: SERIE_A_COLUMNS[i].label,
-    outcome: SERIE_A_COLUMNS[i].label,
-    quota: Number(m[0].replace(',', '.')),
-    market: SERIE_A_COLUMNS[i].market
-  }));
+  // Se mancano quote in qualche mercato, non comprimere l'elenco: questo sposterebbe
+  // tutte le quote successive nella colonna sbagliata. Il PDF Sisal ha colonne a X fisse.
+  // Mappiamo quindi ogni quota alla sua colonna usando la coordinata orizzontale del testo.
+  const positionalItems = (Array.isArray(rowItems) ? rowItems : []).filter(item => Number.isFinite(item.x));
+  let alignedOdds = null;
+  if (positionalItems.length > 1 && positionalItems.some(item => item.x >= 240)) {
+    const candidates = positionalItems.flatMap(item => {
+      const text = String(item.text || '').trim();
+      const tokens = [...text.matchAll(/\b\d{1,3}[.,]\d{1,3}\b/g)];
+      return tokens.map(token => {
+        const width = Number(item.width) || text.length * 4;
+        const x = item.x + (text.length > 0 ? width * token.index / text.length : 0);
+        const quota = Number(token[0].replace(',', '.'));
+        return { x, quota, raw: token[0] };
+      }).filter(candidate => candidate.x >= 240 && Number.isFinite(candidate.quota));
+    }).sort((a, b) => a.x - b.x);
+
+    if (candidates.length >= 3) {
+      const firstX = candidates[0].x;
+      const expectedX = SERIE_A_COLUMNS.map((_, i) => i < 3
+        ? firstX + i * 15
+        : firstX + 51.7 + (i - 3) * 15);
+      const slots = Array(SERIE_A_COLUMNS.length).fill(null);
+      let alignmentFailed = false;
+      for (const candidate of candidates) {
+        let bestIndex = -1;
+        let bestDistance = Infinity;
+        expectedX.forEach((x, i) => {
+          const distance = Math.abs(candidate.x - x);
+          if (distance < bestDistance) { bestDistance = distance; bestIndex = i; }
+        });
+        // Il bollettino standard ha colonne da circa 15 pt; oltre 5 pt non è sicuro
+        // assegnare una quota a un mercato. In quel caso si preferisce scartare la riga.
+        if (bestIndex < 0 || bestDistance > 5 || slots[bestIndex] !== null) {
+          alignmentFailed = true;
+          break;
+        }
+        slots[bestIndex] = candidate.quota;
+      }
+      if (!alignmentFailed && slots.slice(0, 3).every(value => Number.isFinite(value) && value > 1)) {
+        alignedOdds = slots;
+      }
+    }
+  }
+
+  // Compatibilità con PDF/testi che non forniscono coordinate e hanno tutte le quote.
+  if (!alignedOdds && odds.length === SERIE_A_COLUMNS.length) {
+    alignedOdds = odds.map(token => Number(token[0].replace(',', '.')));
+  }
+  if (!alignedOdds) {
+    return reject(odds.length === SERIE_A_COLUMNS.length ? 'quote_alignment' : 'quote_count', { foundOdds: odds.length });
+  }
+
+  const esiti = alignedOdds.flatMap((quota, i) => {
+    if (quota === null) return []; // quota assente: lascia vuoto soltanto questo mercato.
+    if (!Number.isFinite(quota) || quota <= 1) return [{
+      label: SERIE_A_COLUMNS[i].label, outcome: SERIE_A_COLUMNS[i].label, quota, market: SERIE_A_COLUMNS[i].market
+    }];
+    return [{
+      label: SERIE_A_COLUMNS[i].label,
+      outcome: SERIE_A_COLUMNS[i].label,
+      quota,
+      market: SERIE_A_COLUMNS[i].market
+    }];
+  });
   if (esiti.some(e => !Number.isFinite(e.quota) || e.quota <= 1)) return reject('invalid_odds', { foundOdds: odds.length });
+
+  const missingOdds = alignedOdds.flatMap((quota, i) => quota === null ? [SERIE_A_COLUMNS[i].label] : []);
+  if (missingOdds.length) diagnostics.partialRows.push({ data: original.slice(0, 16), casa: teams.casa, trasferta: teams.trasferta, missing: missingOdds });
 
   diagnostics.recognizedRows += 1;
   return {
@@ -327,7 +393,8 @@ export async function parseSisalPdf(arrayBuffer) {
       .map(item => ({
         x: item.transform?.[4] || 0,
         y: item.transform?.[5] || 0,
-        text: item.str.trim()
+        text: item.str.trim(),
+        width: item.width || 0
       }))
       .sort((a, b) => b.y - a.y || a.x - b.x);
 
@@ -345,7 +412,11 @@ export async function parseSisalPdf(arrayBuffer) {
     }
 
     for (const row of rows) {
-      lines.push(row.items.sort((a, b) => a.x - b.x).map(x => x.text).join(' ').replace(/\s+/g, ' ').trim());
+      const items = row.items.sort((a, b) => a.x - b.x);
+      lines.push({
+        text: items.map(x => x.text).join(' ').replace(/\s+/g, ' ').trim(),
+        items
+      });
     }
   }
 
@@ -355,11 +426,13 @@ export async function parseSisalPdf(arrayBuffer) {
     candidateRows: 0,
     recognizedRows: 0,
     duplicateRows: 0,
+    partialRows: [],
     rejects: []
   };
   let inSerieA = false;
 
-  for (const line of lines) {
+  for (const lineData of lines) {
+    const line = lineData.text;
     if (isSerieAHeader(line)) {
       inSerieA = true;
       diagnostics.seriesAFound = true;
@@ -372,7 +445,7 @@ export async function parseSisalPdf(arrayBuffer) {
     if (!inSerieA) continue;
     if (/^(?:Data|Ora|Pal\.|Avv\.|Squadra|Esito Finale|CALCIO PER MANIFESTAZIONE|LIVE)/i.test(line)) continue;
 
-    const match = parseSerieAPdfLine(line, diagnostics);
+    const match = parseSerieAPdfLine(line, diagnostics, lineData.items);
     if (match) found.push(match);
   }
 

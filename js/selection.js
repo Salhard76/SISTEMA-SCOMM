@@ -1,5 +1,5 @@
 /* Selezione quote: 1 quota = fissa; 2 quote, anche di mercati diversi, = doppia del sistema. */
-import { MAX_CHOICES_PER_MATCH } from './config.js?v=sb-outline-v12-20261023';
+import { MAX_CHOICES_PER_MATCH } from './config.js?v=sb-outline-v13-20261026';
 
 export function selectionMarketKey(outcome) {
   const market = String(outcome?.market ?? '')
