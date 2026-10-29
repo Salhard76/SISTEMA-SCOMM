@@ -1,5 +1,33 @@
 # Sistema Scommesse Builder
 
+## Novità versione 17 — recupero senza sovrascrittura automatica
+- **Il salvataggio originale non viene riscritto all'apertura** quando il ripristino tollerante corregge valori o scarta singole partite. L'app avvisa che la prima modifica successiva aggiornerà il salvataggio con i dati recuperati. Questo evita la perdita immediata del contenuto originale prima che l'utente possa controllare la sessione.
+- **Controllo numerico più rigoroso**: valori locali salvati come booleani o oggetti non vengono interpretati come numeri validi; tornano ai valori predefiniti senza far fallire l'intero ripristino. Gli stessi tipi malformati sono rifiutati durante l'import di backup JSON.
+- **Filtri robusti**: vengono segnalati oggetti filtro malformati e vengono azzerati i limiti contraddittori (minimo maggiore del massimo).
+- **Elenco partite corrotto**: se il campo non è un array, la sessione viene recuperata senza partite e l'anomalia viene segnalata.
+- **Test**: aggiunti controlli sui tipi numerici, filtri contraddittori, struttura elenco partite e mancata sovrascrittura automatica all'avvio.
+
+## Novità versione 16 — ripristino sessione tollerante
+- **Un campo anomalo non cancella più la sessione.** Nella v15 bastava un solo valore non valido nei dati salvati (puntata negativa o sopra 100.000 €, budget 0, un filtro fuori range, una partita senza quote) per scartare tutto, compreso il testo inserito a mano. Ora i numeri anomali tornano al predefinito, i filtri non validi vengono svuotati e viene scartata solo la singola partita non valida; l'app mostra cosa è stato corretto. I dati non validi non raggiungono mai l'interfaccia. L'import di un backup JSON resta rigoroso (tutto o niente).
+- **Test**: 2 nuovi test; quello della v15 che pretendeva l'errore su una quota non valida ora verifica lo scarto della sola partita.
+
+
+## Novità versione 15 — validazione dello stato salvato
+- **Stato locale validato prima dell’uso**: i dati recuperati da `localStorage` passano attraverso la stessa validazione strutturale usata per i backup JSON, prima di aggiornare l’interfaccia o lo stato applicativo.
+- **Recupero prudente**: se il salvataggio è corrotto o incoerente, l’app parte con una sessione vuota invece di usare dati parziali. Il contenuto salvato non viene cancellato automaticamente, così resta disponibile finché l’utente non salva una nuova sessione o importa un backup.
+- **Compatibilità con le selezioni precedenti**: le selezioni che non corrispondono più a quote presenti vengono rimosse in modo controllato, segnalando la migrazione, mentre errori strutturali e quote non valide bloccano il ripristino.
+- **Elenco squadre più robusto**: se il JSON del catalogo personalizzato è corrotto, contiene elementi non testuali o nomi ufficiali duplicati, viene usato l’elenco base incluso nell’app.
+- **Versione/cache**: identificatore aggiornato a `sb-v15-20261029` per evitare il riuso dei moduli della v14.
+- **Verifiche**: aggiunti test per stato locale valido, dati malformati, selezioni obsolete e catalogo squadre corrotto. Il test end-to-end con PDF Sisal reale e il collaudo fisico su Android restano da eseguire sul dispositivo.
+
+## Novità versione 14 — velocità su smartphone e apertura con rete debole
+- **Stampa ed esportazione immediate**: il sistema non viene più rigenerato (1.024 colonne + tabella) a ogni clic su Stampa/CSV/Testo se selezioni, filtri e puntata sono già allineati. Con CPU rallentata 4× (stima di uno smartphone): stampa colonne 5,9 s → 0,3 s, stampa integrale 4,8 s → 0,2 s. Se cambi un filtro e premi subito CSV, i dati restano aggiornati.
+- **Tabella a video paginata**: 100 righe alla volta con «Mostra altre 100» / «Mostra tutte». Generazione con CPU 4×: 4,8 s → 0,8 s. CSV, testo e stampe contengono sempre tutte le colonne.
+- **Service worker**: l'app si apre dalla cache dopo 3,5 s se la rete è lenta (prima attendeva la rete: 8 s nella prova), la richiesta continua in background e aggiorna la cache. L'HTML viene rivalidato con `cache: 'no-cache'`, così una nuova release non resta nascosta dalla cache HTTP del browser. Se un aggiornamento viene installato mentre l'app è aperta compare un avviso.
+- **Stampa colonne**: le quote fisse hanno un riquadro nero oltre al grassetto, visibile anche in bianco e nero e sulle righe grigie.
+- **Pulizia**: rimosso codice duplicato nel parser PDF; versione unica `sb-v15-20261029` in tutti i file; 4 nuovi test.
+
+
 ## Novità versione 13 — importazione robusta delle quote mancanti
 - **Venezia–Inter non viene più scartata** quando nel PDF manca una singola quota di mercato. Il parser usa le coordinate delle colonne Sisal per conservare correttamente l'associazione tra quota e mercato; nell'esempio, la quota 11,00 resta in «No Ospite» e «Sì Ospite» rimane vuoto.
 - **Importazione parziale controllata**: i mercati per cui non è pubblicata una quota non diventano selezionabili. Se le coordinate non consentono un'associazione sicura, la riga viene ancora rifiutata piuttosto che spostare le quote in mercati sbagliati.

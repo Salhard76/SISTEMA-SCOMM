@@ -1,5 +1,5 @@
 /* Cache offline limitata alla shell dell'app. Le quote online non vengono inventate né cacheate da domini esterni. */
-const RELEASE = 'sb-outline-v13-20261026';
+const RELEASE = 'sb-v17-20261029';
 const CACHE_NAME = `sistema-scommesse-builder-shell-${RELEASE}`;
 const CACHE_PREFIX = 'sistema-scommesse-builder-shell-';
 const VERSION_QUERY = `?v=${RELEASE}`;
@@ -46,21 +46,26 @@ self.addEventListener('activate', event => {
   );
 });
 
-async function networkFirst(request, fallbackUrl) {
-  try {
-    const response = await fetch(request);
-    if (response && response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      const cacheKey = new URL(fallbackUrl, self.registration.scope).href;
-      await cache.put(cacheKey, response.clone());
-    }
+// Rete prima, ma senza far aspettare: con segnale debole la copia in cache viene servita dopo NETWORK_TIMEOUT_MS
+// mentre la richiesta continua in background e aggiorna la cache per la visita successiva.
+// "no-cache" obbliga a rivalidare col server: senza, la cache HTTP del browser (GitHub Pages usa max-age=600)
+// poteva servire un index.html vecchio fino a 10 minuti anche con la rete disponibile.
+const NETWORK_TIMEOUT_MS = 3500;
+async function networkFirst(event, fallbackUrl) {
+  const request = event.request;
+  const cache = await caches.open(CACHE_NAME);
+  const cacheKey = new URL(fallbackUrl, self.registration.scope).href;
+  const network = fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(async response => {
+    if (response && response.ok) await cache.put(cacheKey, response.clone());
     return response;
-  } catch (error) {
-    const cache = await caches.open(CACHE_NAME);
-    const fallback = await cache.match(new URL(fallbackUrl, self.registration.scope).href);
-    if (fallback) return fallback;
-    throw error;
-  }
+  });
+  const settled = network.catch(() => null);   // evita errori non gestiti se la rete cade dopo il timeout
+  event.waitUntil(settled);                    // lascia finire l'aggiornamento della cache in background
+  const cached = await cache.match(cacheKey);
+  if (!cached) return network;
+  const timeout = new Promise(resolve => setTimeout(() => resolve(null), NETWORK_TIMEOUT_MS));
+  const response = await Promise.race([settled, timeout]);
+  return response && response.ok ? response : cached;
 }
 
 self.addEventListener('fetch', event => {
@@ -71,13 +76,13 @@ self.addEventListener('fetch', event => {
   if (url.origin !== scopeUrl.origin || !url.pathname.startsWith(scopeUrl.pathname)) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, './index.html'));
+    event.respondWith(networkFirst(event, './index.html'));
     return;
   }
 
   // Il catalogo squadra può essere richiesto con un parametro anti-cache variabile: salva e riusa la chiave canonica.
   if (url.pathname.endsWith('/data/serie-a-teams.json')) {
-    event.respondWith(networkFirst(request, './data/serie-a-teams.json'));
+    event.respondWith(networkFirst(event, './data/serie-a-teams.json'));
     return;
   }
 

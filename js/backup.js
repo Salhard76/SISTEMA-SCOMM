@@ -1,4 +1,5 @@
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-outline-v13-20261026';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v17-20261029';
+import { normalizeMatchList } from './selection.js?v=sb-v17-20261029';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -90,7 +91,7 @@ export function validateBackupPayload(payload) {
       for (const side of ['min', 'max']) {
         const limit = value[side];
         if (limit === '' || limit == null) clean[side] = '';
-        else if (Number.isInteger(Number(limit)) && Number(limit) >= 0 && Number(limit) <= MAX_MATCHES) clean[side] = String(Number(limit));
+        else if ((typeof limit === 'number' || typeof limit === 'string') && Number.isInteger(Number(limit)) && Number(limit) >= 0 && Number(limit) <= MAX_MATCHES) clean[side] = String(Number(limit));
         else throw new Error(`Limite del filtro “${key}” non valido.`);
       }
       limits[key] = clean;
@@ -112,12 +113,90 @@ export function validateBackupPayload(payload) {
   };
 }
 
+/**
+ * Valida lo stato persistito nel browser prima che raggiunga l'interfaccia.
+ * Diversamente dall'import di un backup (che è tutto o niente), qui si recupera il più possibile:
+ * un valore numerico anomalo torna al predefinito, un filtro fuori range viene svuotato e solo la singola
+ * partita non valida viene scartata. Prima bastava un campo errato (puntata -1, budget 0, una partita senza
+ * quote) per perdere l'intera sessione, compreso il testo inserito a mano.
+ * Nessun dato non valido raggiunge l'interfaccia: ciò che non supera i controlli viene escluso e segnalato.
+ */
+export function validateStoredState(stored) {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+    throw new Error('Lo stato salvato non contiene un oggetto valido.');
+  }
+  const sanitized = [];
+  const numberOrDefault = (value, fallback, label) => {
+    if (value == null || value === '') return fallback;
+    // JSON/localStorage may contain booleans or objects after corruption. Number(true) === 1,
+    // but String(true) would then pass the wrong value to the backup validator and discard
+    // the entire session. Accept only numbers and numeric strings.
+    if (typeof value !== 'number' && typeof value !== 'string') {
+      sanitized.push(label);
+      return fallback;
+    }
+    const n = Number(value);
+    if (Number.isFinite(n) && n >= 0.01 && n <= 100000) return String(value);
+    sanitized.push(label);
+    return fallback;
+  };
+  const stake = numberOrDefault(stored.stake, '0.10', 'puntata per colonna');
+  const systemBudget = numberOrDefault(stored.systemBudget, '10.00', 'budget totale');
+
+  const limits = {};
+  if (stored.outcomeFilterLimits != null && (typeof stored.outcomeFilterLimits !== 'object' || Array.isArray(stored.outcomeFilterLimits))) {
+    sanitized.push('filtro');
+  } else if (stored.outcomeFilterLimits && typeof stored.outcomeFilterLimits === 'object') {
+    for (const [key, value] of Object.entries(stored.outcomeFilterLimits)) {
+      if (!key || key.length > 250 || ['__proto__', 'constructor', 'prototype'].includes(key) || !value || typeof value !== 'object' || Array.isArray(value)) {
+        sanitized.push('filtro');
+        continue;
+      }
+      const clean = {};
+      for (const side of ['min', 'max']) {
+        const limit = value[side];
+        if (limit === '' || limit == null || (typeof limit === 'string' && !limit.trim())) clean[side] = '';
+        else if ((typeof limit === 'number' || typeof limit === 'string') && Number.isInteger(Number(limit)) && Number(limit) >= 0 && Number(limit) <= MAX_MATCHES) clean[side] = String(Number(limit));
+        else { clean[side] = ''; sanitized.push('filtro'); }
+      }
+      if (clean.min !== '' && clean.max !== '' && Number(clean.min) > Number(clean.max)) {
+        clean.min = '';
+        clean.max = '';
+        sanitized.push('filtro');
+      }
+      limits[key] = clean;
+    }
+  }
+
+  if (stored.matches != null && !Array.isArray(stored.matches)) sanitized.push('elenco partite');
+  const rawMatches = Array.isArray(stored.matches) ? stored.matches : [];
+  let discardedMatches = Math.max(0, rawMatches.length - MAX_LOADED_MATCHES);
+  let adjustedCount = 0;
+  const survivors = [];
+  for (const candidate of rawMatches.slice(0, MAX_LOADED_MATCHES)) {
+    try {
+      const normalized = normalizeMatchList([candidate]);
+      const checked = validateBackupPayload(createBackupPayload({ matches: normalized.matches })).matches;
+      survivors.push(checked[0]);
+      adjustedCount += normalized.adjustedCount;
+    } catch {
+      discardedMatches += 1;   // solo questa partita viene esclusa, le altre restano
+    }
+  }
+
+  const result = validateBackupPayload(createBackupPayload({
+    ...stored, stake, systemBudget, outcomeFilterLimits: limits, matches: survivors, teamLines: undefined
+  }));
+  return { ...result, legacyAdjustedCount: adjustedCount, discardedMatches, sanitizedFields: [...new Set(sanitized)] };
+}
+
 function clampCount(value) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, Math.min(100000, Math.floor(n))) : 0;
 }
 function validNumberString(value, fallback, min, max, label) {
   if (value == null || value === '') return fallback;
+  if (typeof value !== 'string' && typeof value !== 'number') throw new Error(`Valore ${label} non valido nel backup.`);
   const n = Number(value);
   if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Valore ${label} non valido nel backup.`);
   return String(value);

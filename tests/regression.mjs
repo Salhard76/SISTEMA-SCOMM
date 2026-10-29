@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAM_SEASON } from '../js/parser.js';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAM_SEASON, SERIE_A_TEAMS, getSerieATeamLines } from '../js/parser.js';
 import { generateSystem, MAX_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from '../js/generator.js';
 import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collectVariableOutcomes } from '../js/filters.js';
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
@@ -8,7 +8,7 @@ import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { summarizeColumnRange } from '../js/calculator.js';
 import { calculateStakeAllocation, formatEuroPrecise } from '../js/stake.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
-import { createBackupPayload, validateBackupPayload, BACKUP_FORMAT } from '../js/backup.js';
+import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
 import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from '../js/selection.js';
 import { buildQuoteSheetGroups, flattenQuoteSheetColumns, matchesQuoteColumn } from '../js/quote-sheet.js';
 
@@ -47,7 +47,7 @@ test('Release v13: parser quote mancanti, icone outline e versione aggiornata', 
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-outline-v13-20261026/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v17-20261029/);
   assert.match(pageJs, /class=\"integral-brand-mark\" role=\"img\" aria-label=\"Logo SB\"[^>]*><svg/);
   assert.match(pageJs, /class=\"print-sb-mark\" viewBox=\"0 0 64 64\"/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -60,7 +60,7 @@ test('PWA: il service worker mette in cache la shell, serve l’HTML offline e s
   assert.match(pageJs, /navigator\.serviceWorker\.register\(serviceWorkerUrl\.href\)/);
   assert.match(sw, /cache\.addAll\(CORE_ASSETS/);
   assert.match(sw, /request\.mode === 'navigate'/);
-  assert.match(sw, /networkFirst\(request, '\.\/index\.html'\)/);
+  assert.match(sw, /networkFirst\(event, '\.\/index\.html'\)/);
   assert.match(sw, /if \(url\.origin !== scopeUrl\.origin/);
   assert.match(sw, /vendor\/pdfjs\/pdf\.worker\.min\.js/);
   assert.match(sw, /data\/serie-a-teams\.json/);
@@ -355,6 +355,59 @@ test('Backup JSON: rifiuta un formato/versione sconosciuti', () => {
   const invalid = structuredClone(backupExample);
   invalid.format = 'altro';
   assert.throws(() => validateBackupPayload(invalid), /non è un backup/);
+});
+test('Backup JSON: i valori numerici con tipo malformato restano rifiutati', () => {
+  const invalidStake = structuredClone(backupExample);
+  invalidStake.data.stake = true;
+  assert.throws(() => validateBackupPayload(invalidStake), /puntata non valido/);
+  const invalidFilter = structuredClone(backupExample);
+  invalidFilter.data.outcomeFilterLimits['Esito finale|1'].max = true;
+  assert.throws(() => validateBackupPayload(invalidFilter), /Limite del filtro/);
+});
+
+test('Stato locale: usa la validazione del backup e conserva i dati locali validi', () => {
+  const stored = structuredClone(backupExample.data);
+  delete stored.teamLines; // La lista squadre è salvata in una chiave separata.
+  const restored = validateStoredState(stored);
+  assert.equal(restored.matches.length, 1);
+  assert.equal(restored.matches[0].casa, 'Milan');
+  assert.equal(restored.stakeMode, 'total-budget');
+  assert.equal(restored.systemBudget, '25.00');
+  assert.equal(restored.legacyAdjustedCount, 0);
+});
+test('Stato locale: rifiuta dati strutturalmente corrotti e selezioni fuori catalogo senza usarli', () => {
+  // Una partita con quota non valida viene scartata da sola (prima si perdeva l'intera sessione).
+  const invalid = structuredClone(backupExample.data);
+  invalid.matches[0].esiti[0].quota = 'non-un-numero';
+  const partial = validateStoredState(invalid);
+  assert.equal(partial.matches.length, 0);
+  assert.equal(partial.discardedMatches, 1);
+  assert.equal(partial.manualInput, backupExample.data.manualInput);
+
+  const stale = structuredClone(backupExample.data);
+  stale.matches[0].selezionati = ['Mercato inesistente:Esito'];
+  const migrated = validateStoredState(stale);
+  assert.equal(migrated.legacyAdjustedCount, 1);
+  assert.deepEqual(migrated.matches[0].selezionati, []);
+  assert.equal(migrated.matches[0].tipo, 'fissa');
+});
+test('Elenco squadre locale: JSON corrotto o nomi duplicati usano il catalogo base', () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  try {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: { getItem: () => JSON.stringify(['Inter', 'Inter']) }
+    });
+    assert.deepEqual(getSerieATeamLines(), SERIE_A_TEAMS);
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: { getItem: () => '{non json' }
+    });
+    assert.deepEqual(getSerieATeamLines(), SERIE_A_TEAMS);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else delete globalThis.localStorage;
+  }
 });
 
 test('Budget totale: ripartizione su colonne effettive, residuo ai centesimi e nessun superamento', () => {
@@ -818,16 +871,100 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v17: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-outline-v13-20261026/);
+  assert.match(sw, /sb-v17-20261029/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);
+});
+
+// ---------- Test aggiunti nella revisione v14 ----------
+test('Service worker: rete prima con timeout, rivalidazione no-cache e aggiornamento in background', () => {
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /NETWORK_TIMEOUT_MS = 3500/);
+  assert.match(sw, /cache: 'no-cache'/);
+  assert.match(sw, /Promise\.race\(\[settled, timeout\]\)/);
+  assert.match(sw, /event\.waitUntil\(settled\)/);
+  assert.match(pageJs, /controllerchange/);
+});
+test('Esportazione e stampa: nessuna rigenerazione se selezioni, filtri e puntata sono già allineati', () => {
+  assert.match(pageJs, /state\.columnsSig === columnsSignature\(\)/);
+  assert.match(pageJs, /state\.renderSig !== stakeSignature\(\)\) renderTable\(\)/);
+  assert.match(pageJs, /state\.renderSig = stakeSignature\(\);\n\s+const cols = state\.finalColumns;/);
+});
+test('Tabella a video paginata (100 righe) con "Mostra altre/tutte"; esportazioni e stampe restano complete', () => {
+  assert.match(pageJs, /TABLE_PAGE_SIZE = 100/);
+  assert.match(pageJs, /cols\.slice\(0, visibleCount\)/);
+  assert.match(pageJs, /id=\\?"showMoreRows/);
+  assert.match(pageJs, /CSV, testo e stampe contengono tutte le colonne/);
+});
+test('Stampa colonne: le quote fisse hanno riquadro nero e grassetto anche sulle righe grigie', () => {
+  assert.match(pageJs, /class=\\?"print-fixed/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /td\.print-fixed\{box-shadow:inset 0 0 0 \.45mm #000!important/);
+});
+
+// ---------- Test aggiunti nella revisione v16 ----------
+test('Stato locale tollerante: un campo anomalo non cancella la sessione', () => {
+  const base = structuredClone(backupExample.data); delete base.teamLines;
+  base.manualInput = 'Milan - Roma; 2.10; 3.20; 3.60';
+  base.matches.push(structuredClone(base.matches[0]), structuredClone(base.matches[0]));
+  base.matches[1].esiti = [];                                   // partita senza quote: da scartare
+  base.stake = '-1'; base.systemBudget = '0';                   // numeri fuori range: tornano al predefinito
+  base.outcomeFilterLimits = { 'esito|1': { min: '', max: '99' }, 'esito|x': { min: '2', max: '' } };
+  const r = validateStoredState(base);
+  assert.equal(r.matches.length, 2);
+  assert.equal(r.discardedMatches, 1);
+  assert.equal(r.stake, '0.10');
+  assert.equal(r.systemBudget, '10.00');
+  assert.equal(r.manualInput, 'Milan - Roma; 2.10; 3.20; 3.60');
+  assert.equal(r.outcomeFilterLimits['esito|1'].max, '');
+  assert.equal(r.outcomeFilterLimits['esito|x'].min, '2');
+  assert.deepEqual(r.sanitizedFields.sort(), ['budget totale', 'filtro', 'puntata per colonna']);
+  assert.throws(() => validateStoredState([]), /oggetto valido/);
+  assert.throws(() => validateStoredState('x'), /oggetto valido/);
+});
+test('Stato locale: più di 30 partite o elementi non oggetto non rompono il ripristino', () => {
+  const base = structuredClone(backupExample.data); delete base.teamLines;
+  base.matches = [null, 'x', 5, ...Array.from({ length: 30 }, () => structuredClone(backupExample.data.matches[0]))];
+  const r = validateStoredState(base);
+  assert.ok(r.matches.length <= 30);
+  assert.ok(r.discardedMatches >= 3);
+});
+test('Stato locale: valori numerici di tipo errato e filtri incoerenti vengono neutralizzati', () => {
+  const base = structuredClone(backupExample.data); delete base.teamLines;
+  base.stake = true; base.systemBudget = { amount: 200 };
+  base.matches = 'elenco corrotto';
+  base.outcomeFilterLimits = {
+    'filtro|reverse': { min: '4', max: '2' },
+    'filtro|bad-object': [],
+    'filtro|valid': { min: '1', max: '3' }
+  };
+  const r = validateStoredState(base);
+  assert.equal(r.stake, '0.10');
+  assert.equal(r.systemBudget, '10.00');
+  assert.equal(r.matches.length, 0);
+  assert.equal(r.outcomeFilterLimits['filtro|reverse'].min, '');
+  assert.equal(r.outcomeFilterLimits['filtro|reverse'].max, '');
+  assert.equal(r.outcomeFilterLimits['filtro|valid'].min, '1');
+  assert.ok(r.sanitizedFields.includes('puntata per colonna'));
+  assert.ok(r.sanitizedFields.includes('budget totale'));
+  assert.ok(r.sanitizedFields.includes('elenco partite'));
+  assert.ok(r.sanitizedFields.includes('filtro'));
+});
+test('Ripristino: la sessione locale corretta non viene salvata sopra l’originale all’apertura', () => {
+  const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function restoreState()');
+  const end = source.indexOf('function getBackupData()', start);
+  assert.ok(start >= 0 && end > start);
+  const restore = source.slice(start, end);
+  assert.doesNotMatch(restore, /saveState\(\)/);
+  assert.match(restore, /la prossima modifica lo aggiornerà/);
 });
 
 for (const { name, fn } of queue) {

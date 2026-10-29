@@ -1,17 +1,17 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-outline-v13-20261026';
-import { generateSystem } from './js/generator.js?v=sb-outline-v13-20261026';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-outline-v13-20261026';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-outline-v13-20261026';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-outline-v13-20261026';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-outline-v13-20261026';
-import { createBackupPayload, validateBackupPayload } from './js/backup.js?v=sb-outline-v13-20261026';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-outline-v13-20261026';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-outline-v13-20261026';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-outline-v13-20261026';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-outline-v13-20261026';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v17-20261029';
+import { generateSystem } from './js/generator.js?v=sb-v17-20261029';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v17-20261029';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v17-20261029';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v17-20261029';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v17-20261029';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v17-20261029';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-v17-20261029';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v17-20261029';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v17-20261029';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v17-20261029';
 
 const $ = id => document.getElementById(id);
-const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
+const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
@@ -222,25 +222,39 @@ function saveState() {
 }
 function restoreState() {
   try {
-    const data = JSON.parse(localStorage.getItem(savedKey) || 'null');
-    if (!data) return;
-    $('manualInput').value = data.manualInput || '';
-    $('stake').value = data.stake || '0.10';
-    $('stakeMode').value = data.stakeMode === 'total-budget' ? 'total-budget' : 'per-column';
-    $('systemBudget').value = data.systemBudget || '10.00';
+    const raw = JSON.parse(localStorage.getItem(savedKey) || 'null');
+    if (!raw) return;
+    // Il salvataggio locale è persistente ma non attendibile: usa la stessa
+    // validazione del backup prima di assegnare dati a stato e interfaccia.
+    const data = validateStoredState(raw);
+    $('manualInput').value = data.manualInput;
+    $('stake').value = data.stake;
+    $('stakeMode').value = data.stakeMode;
+    $('systemBudget').value = data.systemBudget;
     updateStakeModeVisibility();
-    $('sisalBonus').checked = data.sisalBonus !== false;
-    if (Array.isArray(data.matches)) {
-      const normalized = normalizeMatchList(data.matches.slice(0, MAX_LOADED_MATCHES));
-      state.matches = normalized.matches;
-      state.legacyAdjustedCount = normalized.adjustedCount;
+    $('sisalBonus').checked = data.sisalBonus;
+    state.matches = data.matches;
+    state.legacyAdjustedCount = data.legacyAdjustedCount;
+    state.outcomeFilterLimits = data.outcomeFilterLimits;
+    state.source = data.source;
+    state.pdfDiagnostics = data.pdfDiagnostics;
+    document.documentElement.dataset.theme = data.theme;
+    const notes = [];
+    if (data.discardedMatches) notes.push(`${data.discardedMatches} ${data.discardedMatches === 1 ? 'partita non valida è stata scartata' : 'partite non valide sono state scartate'}`);
+    if (data.sanitizedFields.length) notes.push(`valori non validi riportati al predefinito (${data.sanitizedFields.join(', ')})`);
+    if (state.legacyAdjustedCount || notes.length) {
+      notes.push('il salvataggio originale non è stato modificato automaticamente; la prossima modifica lo aggiornerà');
     }
-    if (data.outcomeFilterLimits && typeof data.outcomeFilterLimits === 'object') state.outcomeFilterLimits = data.outcomeFilterLimits;
-    state.source = typeof data.source === 'string' ? data.source : '';
-    state.pdfDiagnostics = data.pdfDiagnostics && typeof data.pdfDiagnostics === 'object' ? data.pdfDiagnostics : null;
-    document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
-    if (state.legacyAdjustedCount) saveState();
-  } catch { /* Stato salvato corrotto: partenza pulita. */ }
+    state.restoreNotice = notes.join('; ');
+    // Non riscrivere automaticamente il salvataggio originale durante il ripristino tollerante.
+    // Il primo salvataggio successivo a un'azione dell'utente persisterà i dati già normalizzati;
+    // intanto la sessione originale resta intatta in localStorage.
+  } catch (error) {
+    // Non tentare di usare dati parziali o malformati. Lascia il valore originale
+    // disponibile finché l'utente non salva una nuova sessione o importa un backup.
+    console.warn('Stato locale non valido; avvio con una sessione vuota.', error);
+    status('I dati salvati sul dispositivo non sono validi: avvio con una sessione vuota. Puoi importare un backup JSON per recuperare i dati.', 'warning');
+  }
 }
 function getBackupData() {
   return {
@@ -567,10 +581,13 @@ function updateCounter() {
   renderStakePreview(filtered.colonneDopo);
   if (state.lastGenerated) {
     state.rawColumns = result.colonne; state.finalColumns = filtered.colonne; state.exclusive = built.exclusive;
+    state.columnsSig = columnsSignature();
     renderTable();
   }
 }
+const TABLE_PAGE_SIZE = 100;
 function renderTable() {
+  state.renderSig = stakeSignature();
   const cols = state.finalColumns;
   const allocation = getStakeAllocation(cols.length);
   renderStakePreview(cols.length);
@@ -615,8 +632,9 @@ function renderTable() {
     ? `Budget impostato: ${formatEuro(allocation.inputBudget)} · Puntata effettiva/colonna: ${formatEuro(stake)} · Residuo non utilizzato: ${formatEuro(allocation.residue)}`
     : `Puntata/colonna: ${formatEuro(stake)}`;
   $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · ${allocationText} · Spesa effettiva del sistema: ${formatEuro(totalStake)} · Ritorno stimato per colonna: ${formatEuro(minReturn)} – ${formatEuro(maxReturn)}. ${bonusOn ? `${eligibleCount} colonne su ${cols.length} rispettano la soglia stimata per il Bonus Multipla.` : 'Stima Bonus Multipla disattivata.'} Il ritorno include la puntata; importi bonus non garantiti.${probLine}`;
-  const rows = cols.map((c, i) => `<tr><td data-label="Colonna n.">${c.id}</td><td data-label="Esiti selezionati">${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num" data-label="Quota totale">${formatQuota(c.quotaTotale)}</td><td class="num" data-label="Prob. implicita (con aggio)">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Prob. stimata (senza aggio)">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Bonus stimato">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num" data-label="Ritorno lordo stimato">${formatEuro(returns[i])}</td><td class="num" data-label="Profitto teorico stimato">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
-  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const visibleCount = Math.min(cols.length, Math.max(TABLE_PAGE_SIZE, state.visibleRows || TABLE_PAGE_SIZE));
+  const rows = cols.slice(0, visibleCount).map((c, i) => `<tr><td data-label="Colonna n.">${c.id}</td><td data-label="Esiti selezionati">${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num" data-label="Quota totale">${formatQuota(c.quotaTotale)}</td><td class="num" data-label="Prob. implicita (con aggio)">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Prob. stimata (senza aggio)">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Bonus stimato">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num" data-label="Ritorno lordo stimato">${formatEuro(returns[i])}</td><td class="num" data-label="Profitto teorico stimato">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
+  $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>${visibleCount < cols.length ? `<div class="table-more"><p>Mostrate ${visibleCount.toLocaleString('it-IT')} di ${cols.length.toLocaleString('it-IT')} colonne. CSV, testo e stampe contengono tutte le colonne.</p><div class="button-row"><button id="showMoreRows" class="button secondary" type="button">Mostra altre ${TABLE_PAGE_SIZE}</button><button id="showAllRows" class="button secondary" type="button">Mostra tutte (${cols.length.toLocaleString('it-IT')})</button></div></div>` : ''}`;
   $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
 }
 function buildPrintTable() {
@@ -644,7 +662,7 @@ function buildPrintTable() {
       const selectedByEvent = new Map(column.esiti.map(outcome => [outcome.eventId, outcome]));
       const eventCells = activeEvents.map(event => {
         const label = escapeHtml(selectedByEvent.get(event.id)?.label || '—');
-        return `<td>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
+        return `<td${event.tipo === 'fissa' ? ' class="print-fixed"' : ''}>${event.tipo === 'fissa' ? `<strong>${label}</strong>` : label}</td>`;
       }).join('');
       const netWin = column.quotaTotale * stake - stake;
       return `<tr class="${rowClass}" data-column-id="${escapeHtml(column.id)}"><td>${column.id}</td>${eventCells}<td class="num">${formatQuota(column.quotaTotale)}</td><td class="num">${formatEuro(netWin)}</td></tr>`;
@@ -661,8 +679,20 @@ function buildPrintTable() {
 
 // Ricalcola direttamente dai valori correnti dei filtri prima di esportare o stampare,
 // senza dipendere dal debounce dell'evento input (ad esempio un tocco rapido su Stampa).
+// Firme degli ingressi: permettono di sapere se colonne e tabella sono già allineate a selezioni, filtri e puntata.
+// Prima ogni esportazione/stampa rigenerava le 1.024 colonne e ridisegnava la tabella (circa 5 s su smartphone).
+function columnsSignature() {
+  return JSON.stringify([state.matches.map(m => [m.id, m.selezionati || []]), state.outcomeFilterLimits || {}]);
+}
+function stakeSignature() {
+  return JSON.stringify([$('stakeMode')?.value, $('stake')?.value, $('systemBudget')?.value, Boolean($('sisalBonus')?.checked)]);
+}
 function refreshGeneratedColumnsNow() {
   if (!state.lastGenerated) return false;
+  if (state.columnsSig === columnsSignature()) {
+    if (state.renderSig !== stakeSignature()) renderTable();   // solo puntata/bonus cambiati: niente rigenerazione
+    return true;
+  }
   const built = buildBase();
   if (built.error) {
     status(built.error, 'error');
@@ -674,6 +704,7 @@ function refreshGeneratedColumnsNow() {
   state.exclusive = built.exclusive;
   $('beforeCount').textContent = filtered.colonnePrima.toLocaleString('it-IT');
   $('afterCount').textContent = filtered.colonneDopo.toLocaleString('it-IT');
+  state.columnsSig = columnsSignature();
   renderTable();
   return true;
 }
@@ -933,6 +964,8 @@ Vuoi procedere comunque?`)) return;
   state.finalColumns = applyFilters(state.rawColumns, collectFilters()).colonne;
   state.exclusive = built.exclusive;
   state.lastGenerated = true;
+  state.columnsSig = columnsSignature();
+  state.visibleRows = TABLE_PAGE_SIZE;
   renderTable();
   status('Sistema generato. Puoi esportare il CSV leggibile, stampare il sistema integrale o le singole colonne.', 'success');
 });
@@ -945,6 +978,12 @@ $('exportText').addEventListener('click', () => {
   if (!refreshGeneratedColumnsNow() || !state.finalColumns.length) return;
   const allocation = getStakeAllocation(state.finalColumns.length);
   if (allocation.valid) exportText(state.finalColumns, allocation.perColumn, allocation);
+});
+$('tableWrap').addEventListener('click', event => {
+  const more = event.target.closest('#showMoreRows, #showAllRows');
+  if (!more) return;
+  state.visibleRows = more.id === 'showAllRows' ? Infinity : (state.visibleRows || TABLE_PAGE_SIZE) + TABLE_PAGE_SIZE;
+  renderTable();
 });
 $('printTable').addEventListener('click', () => {
   if (!refreshGeneratedColumnsNow() || !state.rawColumns.length) return;
@@ -1129,13 +1168,20 @@ renderTeamListEditor();
 updateSeasonReminder();
 if (state.matches.length) {
   renderMatches();
-  status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} selezioni non più valide sono state corrette: controlla il foglio quote.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount ? 'warning' : '');
+  status(state.legacyAdjustedCount ? `Sessione ripristinata. ${state.legacyAdjustedCount} selezioni non più valide sono state corrette: controlla il foglio quote.${state.restoreNotice ? ` Inoltre: ${state.restoreNotice}.` : ''}` : state.restoreNotice ? `Sessione ripristinata. Attenzione: ${state.restoreNotice}. Controlla i dati.` : 'Sessione ripristinata dal dispositivo.', state.legacyAdjustedCount || state.restoreNotice ? 'warning' : '');
+} else if (state.restoreNotice) {
+  status(`Sessione ripristinata. Attenzione: ${state.restoreNotice}. Controlla i dati.`, 'warning');
 }
 
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-outline-v13-20261026');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v17-20261029');
+  // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) status('Aggiornamento installato: chiudi e riapri l’app (o ricarica la pagina) per usare la nuova versione.', 'warning');
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(serviceWorkerUrl.href)
       .catch(error => console.warn('Cache offline non disponibile; l’app continua a funzionare online:', error));

@@ -21,12 +21,17 @@ export function getSerieATeamLines() {
   try {
     const stored = globalThis.localStorage?.getItem(SERIE_A_TEAMS_STORAGE_KEY);
     if (stored) {
-      const lines = JSON.parse(stored);
-      if (Array.isArray(lines) && lines.filter(x => String(x).trim()).length >= 2) {
-        return lines.map(x => String(x).trim()).filter(Boolean);
+      const raw = JSON.parse(stored);
+      if (Array.isArray(raw)) {
+        const lines = raw.filter(x => typeof x === 'string').map(x => x.trim()).filter(Boolean);
+        const names = lines.map(line => normalizeTeam(line.split('|')[0].trim()));
+        const valid = lines.length >= 2
+          && lines.length === raw.length
+          && names.every((name, index) => name && names.indexOf(name) === index);
+        if (valid) return lines;
       }
     }
-  } catch { /* Se localStorage è disabilitato, usa l'elenco iniziale. */ }
+  } catch { /* Se localStorage è disabilitato o corrotto, usa l'elenco iniziale. */ }
   return [...SERIE_A_TEAMS];
 }
 
@@ -324,9 +329,6 @@ function parseSerieAPdfLine(line, diagnostics, rowItems = []) {
 
   const esiti = alignedOdds.flatMap((quota, i) => {
     if (quota === null) return []; // quota assente: lascia vuoto soltanto questo mercato.
-    if (!Number.isFinite(quota) || quota <= 1) return [{
-      label: SERIE_A_COLUMNS[i].label, outcome: SERIE_A_COLUMNS[i].label, quota, market: SERIE_A_COLUMNS[i].market
-    }];
     return [{
       label: SERIE_A_COLUMNS[i].label,
       outcome: SERIE_A_COLUMNS[i].label,
