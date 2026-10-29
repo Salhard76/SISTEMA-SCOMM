@@ -1,14 +1,14 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v17-20261029';
-import { generateSystem } from './js/generator.js?v=sb-v17-20261029';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v17-20261029';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v17-20261029';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v17-20261029';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v17-20261029';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v17-20261029';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-v17-20261029';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v17-20261029';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v17-20261029';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v17-20261029';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v18-20261029';
+import { generateSystem } from './js/generator.js?v=sb-v18-20261029';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v18-20261029';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v18-20261029';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v18-20261029';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v18-20261029';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v18-20261029';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-v18-20261029';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v18-20261029';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v18-20261029';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v18-20261029';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -1176,7 +1176,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v17-20261029');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v18-20261029');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

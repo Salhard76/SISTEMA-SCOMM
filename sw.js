@@ -1,5 +1,5 @@
 /* Cache offline limitata alla shell dell'app. Le quote online non vengono inventate né cacheate da domini esterni. */
-const RELEASE = 'sb-v17-20261029';
+const RELEASE = 'sb-v18-20261029';
 const CACHE_NAME = `sistema-scommesse-builder-shell-${RELEASE}`;
 const CACHE_PREFIX = 'sistema-scommesse-builder-shell-';
 const VERSION_QUERY = `?v=${RELEASE}`;
@@ -27,7 +27,11 @@ const CORE_ASSETS = [
   `./icon-192.png${VERSION_QUERY}`,
   `./icon-512.png${VERSION_QUERY}`,
   `./icon-maskable-512.png${VERSION_QUERY}`,
-  `./apple-touch-icon.png${VERSION_QUERY}`
+  `./apple-touch-icon.png${VERSION_QUERY}`,
+  `./app-icon-192.png${VERSION_QUERY}`,
+  `./app-icon-512.png${VERSION_QUERY}`,
+  `./app-icon-maskable-512.png${VERSION_QUERY}`,
+  `./app-apple-touch-icon.png${VERSION_QUERY}`
 ];
 
 self.addEventListener('install', event => {

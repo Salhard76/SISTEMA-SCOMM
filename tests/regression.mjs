@@ -43,11 +43,16 @@ test('Info: firma stilizzata SalHard accessibile e autore dichiarato', () => {
   assert.match(readFileSync(new URL('../style.css', import.meta.url), 'utf8'), /\.info-author-signature text[^{]*\{[^}]*cursive/s);
 });
 
-test('Release v13: parser quote mancanti, icone outline e versione aggiornata', () => {
+test('Release v18: parser quote mancanti, logo interno outline e icone app ottimizzate', () => {
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v17-20261029/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v18-20261029/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v18-20261029/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v18-20261029/);
+  const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
+  assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
+  for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
   assert.match(pageJs, /class=\"integral-brand-mark\" role=\"img\" aria-label=\"Logo SB\"[^>]*><svg/);
   assert.match(pageJs, /class=\"print-sb-mark\" viewBox=\"0 0 64 64\"/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -871,13 +876,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v17: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v18: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v17-20261029/);
+  assert.match(sw, /sb-v18-20261029/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

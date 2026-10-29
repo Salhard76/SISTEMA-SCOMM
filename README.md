@@ -1,5 +1,11 @@
 # Sistema Scommesse Builder
 
+## Novità versione 18 — icona principale più leggibile
+- **Composizione ingrandita**: le icone colorate usate per installazione, manifest e Apple Touch riducono le bande azzurre laterali e rendono la mascotte più grande senza tagliare verticalmente la fiamma o il vaso. La composizione è stata allargata moderatamente perché l'illustrazione originale arriva già fino ai bordi superiore e inferiore.
+- **Compatibilità**: il manifesto punta a nuovi file `app-icon-*`; il logo interno dell'interfaccia resta monocromatico a contorni e la favicon SB resta ad alto contrasto.
+- **Cache aggiornata**: release `sb-v18-20261029`; i nuovi file icona sono inclusi nella shell offline.
+- **Limite del collaudo**: l'icona è stata controllata come PNG; la resa finale dipende anche dalla maschera della schermata Home Samsung e va confermata installando/aggiornando la PWA sul telefono.
+
 ## Novità versione 17 — recupero senza sovrascrittura automatica
 - **Il salvataggio originale non viene riscritto all'apertura** quando il ripristino tollerante corregge valori o scarta singole partite. L'app avvisa che la prima modifica successiva aggiornerà il salvataggio con i dati recuperati. Questo evita la perdita immediata del contenuto originale prima che l'utente possa controllare la sessione.
 - **Controllo numerico più rigoroso**: valori locali salvati come booleani o oggetti non vengono interpretati come numeri validi; tornano ai valori predefiniti senza far fallire l'intero ripristino. Gli stessi tipi malformati sono rifiutati durante l'import di backup JSON.
@@ -135,7 +141,7 @@ Prima di generare, un controllo visuale rileva selezioni non collegate alle quot
 
 ## Icona e installazione su Android
 
-Il progetto include `manifest.webmanifest`, icone PNG da 192 e 512 px, una variante maskable, favicon e icona Apple Touch. L'immagine principale conserva la mascotte La(a)rfleeze in versione monocromatica a contorni; la favicon da 32 px usa il monogramma SB per restare leggibile. La pubblicazione deve mantenere tutti questi file e `sw.js` nella radice del sito accanto a `index.html`. Il service worker usa una cache versionata della shell locale; la prima visita richiede HTTPS o localhost e una connessione, mentre le risorse esterne restano disponibili solo online.
+Il progetto include icone colorate dedicate (`app-icon-192.png`, `app-icon-512.png`, `app-icon-maskable-512.png` e `app-apple-touch-icon.png`) con bande laterali ridotte e mascotte più grande. Il logo nell’intestazione dell’app resta monocromatico a contorni; la favicon da 32 px usa il monogramma SB per restare leggibile. La pubblicazione deve mantenere tutti questi file e `sw.js` nella radice del sito accanto a `index.html`. Il service worker usa una cache versionata della shell locale; la prima visita richiede HTTPS o localhost e una connessione, mentre le risorse esterne restano disponibili solo online.
 
 ## Pulsante Info
 Il pulsante **ⓘ Info** in alto a destra apre una guida rapida con le istruzioni per importare il PDF Sisal o inserire quote manualmente, i limiti del generatore, i filtri di riduzione, l'esportazione, il backup JSON e l'installazione sulla schermata Home. La finestra si chiude con il pulsante di chiusura, facendo clic sullo sfondo o premendo Esc. Su schermi molto stretti il pulsante viene mostrato come icona per lasciare spazio al titolo.
