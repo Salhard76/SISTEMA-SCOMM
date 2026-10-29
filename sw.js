@@ -1,5 +1,5 @@
 /* Cache offline limitata alla shell dell'app. Le quote online non vengono inventate né cacheate da domini esterni. */
-const RELEASE = 'sb-v19-20261029';
+const RELEASE = 'sb-v20-20261029';
 const CACHE_NAME = `sistema-scommesse-builder-shell-${RELEASE}`;
 const CACHE_PREFIX = 'sistema-scommesse-builder-shell-';
 const VERSION_QUERY = `?v=${RELEASE}`;
@@ -20,6 +20,7 @@ const CORE_ASSETS = [
   `./js/quote-sheet.js${VERSION_QUERY}`,
   `./js/probability.js${VERSION_QUERY}`,
   `./js/stake.js${VERSION_QUERY}`,
+  `./js/coverage.js${VERSION_QUERY}`,
   './data/serie-a-teams.json',
   './vendor/pdfjs/pdf.min.js',
   './vendor/pdfjs/pdf.worker.min.js',

@@ -1,12 +1,18 @@
 # Sistema Scommesse Builder
 
+## Novità versione 20 — controllo copertura minima e quote a rischio doppia
+- **Azzera quote azzera anche i filtri dinamici** (per esempio Min/Max su X, Over o Goal). Conserva le partite, le quote importate, il testo manuale e le impostazioni di puntata. Se non ci sono selezioni ma restano filtri impostati, il pulsante resta disponibile per cancellarli.
+- **Quote in rosso**: una quota inferiore a 2,00 è evidenziata quando nella stessa partita è presente almeno un'altra quota inferiore a 2,00. Selezionare due quote rosse per la stessa doppia non rispetta il criterio adottato per COMPENSAZIONE. Il controllo è visivo e non blocca la selezione.
+- **Controllo automatico ritorno/spesa**: si aggiorna quando cambiano quote selezionate, filtri, modalità di puntata, importi o Bonus Multipla. Moltiplica la quota composta di ogni colonna per la puntata effettiva e aggiunge il bonus stimato secondo la regola interna; confronta il ritorno lordo minimo tra le colonne rimaste con la spesa totale effettiva. Verde significa che il ritorno teorico minimo di una colonna vincente è almeno pari alla spesa; rosso indica il contrario.
+- **Nessuna promessa di vincita**: il controllo non prevede che una colonna vinca e non conta l'eventuale vincita contemporanea di più colonne; segnala soltanto la copertura matematica del ritorno minimo calcolato alle quote correnti. Il bonus Sisal è una stima da verificare sul biglietto effettivo.
+- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v20-20261029`.
+
 ## Novità versione 19 — azzera selezioni senza perdere le quote importate
-- **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, filtri, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.
+- **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.
 - **Invalidazione coerente dei risultati**: quando si caricano nuove partite, si rimuove una partita, si cambia una selezione o si ripristina un backup, le vecchie colonne non possono più restare esportabili per errore.
 - **Persistenza e timer più sicuri**: il testo scritto nell’area manuale si salva automaticamente; il reset completo e il ripristino backup cancellano i timer pendenti per evitare che una vecchia modifica risalvi dati sopra il reset o il backup appena importato. Il reset pulisce anche diagnostica PDF e nome del file mostrato.
 - **Cache aggiornata**: release `sb-v19-20261029`; il service worker e tutti i moduli usano lo stesso identificatore.
 - **Rilettura del codice**: suite di regressione estesa per l’azzeramento selezioni e l’invalidazione dei sistemi obsoleti; controllata la sintassi dei moduli, il precache e i riferimenti delle risorse.
-
 ## Novità versione 18 — icona principale più leggibile
 - **Composizione ingrandita**: le icone colorate usate per installazione, manifest e Apple Touch riducono le bande azzurre laterali e rendono la mascotte più grande senza tagliare verticalmente la fiamma o il vaso. La composizione è stata allargata moderatamente perché l'illustrazione originale arriva già fino ai bordi superiore e inferiore.
 - **Compatibilità**: il manifesto punta a nuovi file `app-icon-*`; il logo interno dell'interfaccia resta monocromatico a contorni e la favicon SB resta ad alto contrasto.

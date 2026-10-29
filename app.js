@@ -1,17 +1,18 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v19-20261029';
-import { generateSystem } from './js/generator.js?v=sb-v19-20261029';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v19-20261029';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v19-20261029';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v19-20261029';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v19-20261029';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v19-20261029';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v19-20261029';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v19-20261029';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v19-20261029';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v19-20261029';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v20-20261029';
+import { generateSystem } from './js/generator.js?v=sb-v20-20261029';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v20-20261029';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v20-20261029';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v20-20261029';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v20-20261029';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v20-20261029';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v20-20261029';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v20-20261029';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v20-20261029';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v20-20261029';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from './js/coverage.js?v=sb-v20-20261029';
 
 const $ = id => document.getElementById(id);
-const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
+const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
@@ -39,13 +40,20 @@ function updateStakeModeVisibility() {
   $('stakePerColumnField').hidden = budgetMode;
   $('systemBudgetField').hidden = !budgetMode;
 }
+function hasActiveOutcomeFilters() {
+  return Object.values(state.outcomeFilterLimits || {}).some(limits =>
+    ['min', 'max'].some(key => limits?.[key] != null && String(limits[key]).trim() !== '')
+  );
+}
 function updateClearQuotesButton() {
   const button = $('clearQuotes');
-  if (button) button.disabled = !state.matches.some(match => Array.isArray(match.selezionati) && match.selezionati.length > 0);
+  const hasSelections = state.matches.some(match => Array.isArray(match.selezionati) && match.selezionati.length > 0);
+  if (button) button.disabled = !hasSelections && !hasActiveOutcomeFilters();
 }
 function invalidateGeneratedSystem(message = 'Le selezioni sono cambiate. Premi “Genera sistema” per ricalcolare le colonne.') {
   state.rawColumns = [];
   state.finalColumns = [];
+  state.coverageColumns = [];
   state.lastGenerated = false;
   state.exclusive = false;
   state.columnsSig = null;
@@ -85,6 +93,42 @@ function renderStakePreview(columnCount = (state.lastGenerated ? state.finalColu
 }
 function getStakeModeLabel(allocation) {
   return allocation?.mode === 'total-budget' ? 'Budget totale' : 'Importo per colonna';
+}
+function renderMinimumCoverageCheck(columns = state.coverageColumns, errorMessage = '') {
+  const root = $('minimumCoverageCheck');
+  if (!root) return;
+  const activeCount = state.matches.filter(match => (match.selezionati || []).length > 0).length;
+  const render = (kind, icon, heading, detail, note = '') => {
+    root.className = `minimum-coverage-check is-${kind}`;
+    root.innerHTML = `<span class="coverage-checkbox" aria-hidden="true">${icon}</span><div class="coverage-copy"><strong>${heading}</strong><p>${detail}</p>${note ? `<small>${note}</small>` : ''}</div>`;
+  };
+  if (!activeCount) {
+    render('idle', '☐', 'CONTROLLO COPERTURA MINIMA', 'Seleziona le quote per confrontare il ritorno lordo teorico minimo con la spesa totale, usando il moltiplicatore e il bonus selezionato.', 'Questo controllo non garantisce che una colonna vinca.');
+    return;
+  }
+  if (errorMessage) {
+    render('warning', '!', 'CONTROLLO NON DISPONIBILE', escapeHtml(errorMessage), 'Correggi le selezioni prima di valutare la copertura della spesa.');
+    return;
+  }
+  const allocation = getStakeAllocation(Array.isArray(columns) ? columns.length : 0);
+  const result = assessMinimumCoverage(columns, allocation, Boolean($('sisalBonus')?.checked));
+  if (result.status === 'no-columns') {
+    render('uncovered', '!', 'RITORNO MINIMO NON SUFFICIENTE', 'Non ci sono colonne valide dopo i filtri: non è possibile coprire la spesa con il sistema attuale.', 'Modifica o azzera i filtri. Il controllo non garantisce che una colonna vinca.');
+    return;
+  }
+  if (!result.valid) {
+    const message = allocation?.valid ? 'Le colonne contengono quote non valide.' : allocation?.error || 'Inserisci una puntata valida.';
+    render('warning', '!', 'CONTROLLO NON DISPONIBILE', escapeHtml(message), 'Il sistema deve avere colonne valide e una spesa calcolabile.');
+    return;
+  }
+  const covered = result.status === 'covered';
+  const bonusText = $('sisalBonus')?.checked
+    ? `Bonus stimato sulla colonna con ritorno minimo: ${(result.minBonusFraction * 100).toLocaleString('it-IT', { maximumFractionDigits: 2 })}%.`
+    : 'Bonus Multipla disattivato.';
+  render(covered ? 'covered' : 'uncovered', covered ? '✓' : '!',
+    covered ? 'RITORNO MINIMO SUFFICIENTE A COPRIRE LA SPESA' : 'RITORNO MINIMO INSUFFICIENTE A COPRIRE LA SPESA',
+    `Ritorno lordo minimo teorico: ${formatEuroPrecise(result.minReturn)} · Spesa effettiva: ${formatEuro(result.totalStake)} · Differenza: ${result.difference >= 0 ? '+' : '−'}${formatEuroPrecise(Math.abs(result.difference))}. ${bonusText}`,
+    `Calcolo su ${result.columnCount} colonne dopo i filtri. È un confronto teorico del ritorno di una colonna vincente, non una garanzia che una colonna vinca.`);
 }
 const reviewedSeasonKey = 'sistema-scommesse-serie-a-reviewed-season-v1';
 function currentSeason() {
@@ -323,6 +367,7 @@ function applyBackup(data) {
   state.legacyAdjustedCount = normalizedMatches.adjustedCount;
   state.rawColumns = [];
   state.finalColumns = [];
+  state.coverageColumns = [];
   state.lastGenerated = false;
   state.outcomeFilterLimits = data.outcomeFilterLimits;
   state.source = data.source || '';
@@ -433,8 +478,11 @@ function renderMatches() {
       if (!outcome) return '<td class="quote-cell quote-cell-empty"><span aria-hidden="true">—</span></td>';
       const key = `${outcome.market}:${outcome.outcome}`;
       const className = selectedClass(match, key);
+      const lowDoubleRisk = hasUnprofitableDoublePartner(outcome, match.esiti);
+      const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : ''].filter(Boolean).join(' ');
       const selectionLabel = match.selezionati?.length === 2 ? 'Doppia automatica' : 'Fissa automatica';
-      return `<td class="quote-cell"><button type="button" class="odds-cell ${className}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
+      const riskNotice = lowDoubleRisk ? ' · Attenzione: quota sotto 2,00 con almeno un’altra quota sotto 2,00 nella stessa partita' : '';
+      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', attenzione: questa quota è sotto 2 e nella partita ne esiste almeno un’altra sotto 2' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
     const metaTitle = [match.data, match.ora, match.palinsesto || match.pal, match.avvenimento || match.avv].filter(Boolean).join(' · ');
@@ -450,7 +498,7 @@ function renderMatches() {
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
     <th class="quote-team quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-team quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}<th class="quote-fixed-head quote-meta-col quote-meta-head quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Avv.</th>
-    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati.</p>`;
+    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati. Le quote in rosso sono inferiori a 2,00 e hanno almeno un’altra quota inferiore a 2,00 nella stessa partita: selezionarle entrambe non rispetta il criterio COMPENSAZIONE.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
   if (focused) {
@@ -592,9 +640,12 @@ function updateCounter() {
   const built = buildBase();
   if (built.error) {
     $('beforeCount').textContent = '—'; $('afterCount').textContent = '—';
+    state.coverageColumns = [];
+    const hasSelections = state.matches.some(match => (match.selezionati || []).length > 0);
+    renderMinimumCoverageCheck([], hasSelections ? built.error : '');
     if (state.lastGenerated) {
       // Non lasciare esportabile la tabella precedente dopo una modifica invalida.
-      state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
+      state.rawColumns = []; state.finalColumns = []; state.coverageColumns = []; state.lastGenerated = false;
       $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
       $('tableWrap').innerHTML = '<p class="empty-state">Sistema non aggiornato: correggi le selezioni prima di generare di nuovo.</p>';
       $('printTableWrap').innerHTML = ''; 
@@ -605,9 +656,11 @@ function updateCounter() {
   }
   const result = built.result;
   const filtered = applyFilters(result.colonne, collectFilters());
+  state.coverageColumns = filtered.colonne;
   $('beforeCount').textContent = result.colonne.length.toLocaleString('it-IT');
   $('afterCount').textContent = filtered.colonneDopo.toLocaleString('it-IT');
   renderStakePreview(filtered.colonneDopo);
+  renderMinimumCoverageCheck(filtered.colonne);
   if (state.lastGenerated) {
     state.rawColumns = result.colonne; state.finalColumns = filtered.colonne; state.exclusive = built.exclusive;
     state.columnsSig = columnsSignature();
@@ -619,7 +672,9 @@ function renderTable() {
   state.renderSig = stakeSignature();
   const cols = state.finalColumns;
   const allocation = getStakeAllocation(cols.length);
+  state.coverageColumns = cols;
   renderStakePreview(cols.length);
+  renderMinimumCoverageCheck(cols);
   $('exportCsv').disabled = $('exportText').disabled = $('printIntegral').disabled = cols.length === 0 || !allocation.valid;
   // La stampa conserva tutte le combinazioni: quelle escluse dai filtri vengono grigiate.
   $('printTable').disabled = state.rawColumns.length === 0 || !allocation.valid;
@@ -639,13 +694,7 @@ function renderTable() {
   const stake = allocation.perColumn;
   const totalStake = allocation.total;
   const bonusOn = $('sisalBonus')?.checked;
-  const bonusRate = c => {
-    // La FAQ Sisal descrive un fattore 1,04 dal quinto evento idoneo; stima limitata al 177%.
-    const eligible = c.esiti.filter(e => Number(e.quota) >= 1.25).length;
-    if (!bonusOn || eligible < 5) return 0;
-    return Math.min(Math.pow(1.04, eligible - 4) - 1, 1.77);
-  };
-  const bonuses = cols.map(bonusRate);
+  const bonuses = cols.map(column => estimateBonusFraction(column, bonusOn));
   // Allego i campi calcolati alle colonne così CSV/testo esportano la stessa stima mostrata a video.
   cols.forEach((c, i) => { c.bonusPercentuale = bonuses[i] * 100; c.ritornoStimato = c.quotaTotale * stake * (1 + bonuses[i]); c.profittoStimato = c.ritornoStimato - stake; });
   const eligibleCount = bonuses.filter(x => x > 0).length;
@@ -954,7 +1003,7 @@ function scheduleStakeUpdate() {
   stakeRenderTimeout = setTimeout(() => {
     updateStakeModeVisibility();
     if (state.lastGenerated) renderTable();
-    else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
+    else { renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0); renderMinimumCoverageCheck(state.coverageColumns); }
   }, 180);
 }
 for (const id of ['stake', 'systemBudget']) {
@@ -965,16 +1014,16 @@ for (const id of ['stake', 'systemBudget']) {
     updateStakeModeVisibility();
     saveState();
     if (state.lastGenerated) renderTable();
-    else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
+    else { renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0); renderMinimumCoverageCheck(state.coverageColumns); }
   });
 }
 $('stakeMode').addEventListener('change', () => {
   updateStakeModeVisibility();
   saveState();
   if (state.lastGenerated) renderTable();
-  else renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0);
+  else { renderStakePreview(Number(String($('afterCount').textContent).replace(/\D/g, '')) || 0); renderMinimumCoverageCheck(state.coverageColumns); }
 });
-$('sisalBonus').addEventListener('change', () => { saveState(); if (state.lastGenerated) renderTable(); });
+$('sisalBonus').addEventListener('change', () => { saveState(); if (state.lastGenerated) renderTable(); else renderMinimumCoverageCheck(state.coverageColumns); });
 $('generate').addEventListener('click', () => {
   const report = getPreflightReport();
   if (report.errors.length) {
@@ -1179,19 +1228,23 @@ window.addEventListener('appinstalled', () => {
 $('clearQuotes').addEventListener('click', () => {
   clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
   const selectionCount = state.matches.reduce((count, match) => count + (Array.isArray(match.selezionati) ? match.selezionati.length : 0), 0);
-  if (!selectionCount) {
+  const filterCount = Object.values(state.outcomeFilterLimits || {}).reduce((count, limits) =>
+    count + ['min', 'max'].filter(key => limits?.[key] != null && String(limits[key]).trim() !== '').length, 0
+  );
+  if (!selectionCount && !filterCount) {
     updateClearQuotesButton();
-    status('Non ci sono quote selezionate da azzerare. Le quote importate sono intatte.');
+    status('Non ci sono selezioni o filtri da azzerare. Le partite e le quote importate sono intatte.');
     return;
   }
   state.matches = clearMatchSelections(state.matches);
+  state.outcomeFilterLimits = {};
   lastDynamicFilterSignature = null;
-  invalidateGeneratedSystem('Selezioni azzerate. Le partite e le quote importate restano disponibili: seleziona nuovi esiti e genera il sistema.');
+  invalidateGeneratedSystem('Selezioni e filtri azzerati. Le partite e le quote importate restano disponibili: seleziona nuovi esiti e genera il sistema.');
   renderMatches();
   $('beforeCount').textContent = '0';
   $('afterCount').textContent = '0';
   saveState();
-  status(`Azzera quote: rimosse ${selectionCount} selezioni. Le quote e le partite importate, il testo manuale, i filtri e le impostazioni sono stati conservati.`, 'success');
+  status(`Azzera quote: rimosse ${selectionCount} selezioni e azzerati ${filterCount} filtri di riduzione. Le partite, le quote importate e le impostazioni della puntata sono state conservate.`, 'success');
 });
 
 $('reset').addEventListener('click', () => {
@@ -1228,7 +1281,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v19-20261029');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v20-20261029');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

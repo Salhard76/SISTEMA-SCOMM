@@ -6,6 +6,7 @@ import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collec
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { summarizeColumnRange } from '../js/calculator.js';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from '../js/coverage.js';
 import { calculateStakeAllocation, formatEuroPrecise } from '../js/stake.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
@@ -29,8 +30,10 @@ test('UI: Azzera quote è tra Genera sistema e Reset completo', () => {
   assert.match(pageHtml, /id="clearQuotes"[^>]*disabled[^>]*aria-label="Azzera quote selezionate senza eliminare le quote importate"/);
   assert.match(pageJs, /\$\('clearQuotes'\)\.addEventListener\('click'/);
   assert.match(pageJs, /state\.matches = clearMatchSelections\(state\.matches\)/);
-  assert.match(pageJs, /Le quote e le partite importate, il testo manuale, i filtri e le impostazioni sono stati conservati/);
-  assert.match(pageHtml, /Azzera quote<\/strong> cancella solo le selezioni e conserva partite e quote importate/);
+  assert.match(pageJs, /state\.outcomeFilterLimits = \{\}/);
+  assert.match(pageJs, /function hasActiveOutcomeFilters\([\s\S]*?return Object\.values\(state\.outcomeFilterLimits \|\| \{\}\)/);
+  assert.match(pageJs, /azzerati \$\{filterCount\} filtri di riduzione/);
+  assert.match(pageHtml, /Azzera quote<\/strong> cancella le selezioni e azzera anche i filtri dinamici/);
 });
 test('Azzera quote: rimuove soltanto le selezioni e mantiene partite, quote e metadati', () => {
   const source = {
@@ -52,6 +55,45 @@ test('Azzera quote: rimuove soltanto le selezioni e mantiene partite, quote e me
   assert.equal(cleared[0].pal, '36441');
   assert.deepEqual(source.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5'], 'la funzione non deve mutare l’oggetto sorgente');
 });
+test('COMPENSAZIONE: quote sotto 2 vengono marcate quando hanno una seconda quota sotto 2 nella stessa partita', () => {
+  const pair = [{ quota: 1.80 }, { quota: 1.90 }, { quota: 2.10 }, { quota: 2.00 }];
+  assert.equal(hasUnprofitableDoublePartner(pair[0], pair), true);
+  assert.equal(hasUnprofitableDoublePartner(pair[1], pair), true);
+  assert.equal(hasUnprofitableDoublePartner(pair[2], pair), false, 'una quota maggiore di 2 non viene marcata');
+  assert.equal(hasUnprofitableDoublePartner(pair[3], pair), false, 'la soglia è strettamente inferiore a 2');
+  const loneLow = { quota: 1.80 };
+  assert.equal(hasUnprofitableDoublePartner(loneLow, [loneLow, { quota: 2.10 }]), false, 'non c’è una seconda quota sotto 2');
+  assert.match(pageJs, /hasUnprofitableDoublePartner\(outcome, match\.esiti\)/);
+  assert.match(pageJs, /odds-low-double-risk/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.odds-cell\.odds-low-double-risk\{color:#b4232d!important/);
+  assert.match(pageJs, /Le quote in rosso sono inferiori a 2,00/);
+});
+
+test('Controllo copertura: moltiplicatore, spesa totale e bonus Sisal stimato', () => {
+  const column = { id: 1, quotaTotale: 62, esiti: Array.from({ length: 5 }, (_, i) => ({ quota: 1.25 + i * 0.01 })) };
+  assert.ok(Math.abs(estimateBonusFraction(column, true) - 0.04) < 1e-12);
+  assert.equal(estimateBonusFraction(column, false), 0);
+  const allocation = { valid: true, perColumn: 0.10, total: 6.40 };
+  const withBonus = assessMinimumCoverage([column], allocation, true);
+  assert.equal(withBonus.status, 'covered', '62 × 0,10 × 1,04 = 6,448 €: supera la spesa di 6,40 €');
+  assert.ok(Math.abs(withBonus.minReturn - 6.448) < 1e-9);
+  assert.ok(Math.abs(withBonus.difference - 0.048) < 1e-9);
+  const noBonus = assessMinimumCoverage([column], allocation, false);
+  assert.equal(noBonus.status, 'uncovered', 'senza bonus il ritorno è 6,20 € e non copre 6,40 €');
+  assert.equal(noBonus.minReturn, 6.2);
+  assert.equal(assessMinimumCoverage([], allocation, true).status, 'no-columns');
+  assert.equal(assessMinimumCoverage([column], { valid: false, error: 'budget non valido' }, true).status, 'invalid-stake');
+  assert.match(pageHtml, /id="minimumCoverageCheck"[^>]*aria-live="polite"/);
+  assert.match(pageJs, /renderMinimumCoverageCheck\(filtered\.colonne\)/);
+  assert.match(pageJs, /renderMinimumCoverageCheck\(state\.coverageColumns\)/);
+  assert.match(pageJs, /estimateBonusFraction\(column, bonusOn\)/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.minimum-coverage-check\.is-covered/);
+  assert.match(css, /\.minimum-coverage-check\.is-uncovered/);
+  assert.match(pageJs, /non una garanzia che una colonna vinca/);
+});
+
 test('Testo manuale: salvataggio automatico e confini di reset/import senza timer obsoleti', () => {
   assert.match(pageJs, /\$\('manualInput'\)\.addEventListener\('input',[\s\S]*?setTimeout\(saveState, 250\)/);
   assert.match(pageJs, /function applyBackup\(data\) \{[\s\S]*?clearTimeout\(manualInputSaveTimeout\)/);
@@ -92,9 +134,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v19-20261029/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v19-20261029/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v19-20261029/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v20-20261029/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v20-20261029/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v20-20261029/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -921,13 +963,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v19: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v20: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v19-20261029/);
+  assert.match(sw, /sb-v20-20261029/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

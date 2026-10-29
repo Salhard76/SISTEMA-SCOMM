@@ -12,7 +12,7 @@ label{display:block;font-size:.9rem;font-weight:700;margin-bottom:.35rem}input,t
 @page{size:A4 portrait;margin:0}
 .print-table-wrap{display:none}
 @media print{
-  .site-header,.site-footer,main>.panel:not(:last-child),.section-heading,.generate-controls,.summary,.table-actions,.quote-sheet-intro,#matches{display:none!important}
+  .site-header,.site-footer,main>.panel:not(:last-child),.section-heading,.generate-controls,.summary,.table-actions,.quote-sheet-intro,#matches,#minimumCoverageCheck{display:none!important}
   .container{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
   .panel{border:0!important;box-shadow:none!important;padding:0!important}
   .table-wrap{overflow:visible!important;max-height:none!important;border:0!important}
@@ -60,6 +60,25 @@ label{display:block;font-size:.9rem;font-weight:700;margin-bottom:.35rem}input,t
 .remove-match{border:0;background:transparent;color:var(--danger);font-size:.85rem;font-weight:900;cursor:pointer;min-width:20px;min-height:22px;padding:0 .1rem;margin-left:.2rem;border-radius:5px}
 .remove-match:hover{background:var(--surface-2)}
 .quote-sheet-help{color:var(--muted);font-size:.78rem;margin:.45rem 0 0}
+/* Le quote sotto 2.00 vengono marcate se nella stessa partita c'è almeno un'altra quota sotto 2.00. */
+.odds-cell.odds-low-double-risk{color:#b4232d!important;text-decoration:underline;text-decoration-color:#b4232d;text-decoration-thickness:1.5px;text-underline-offset:2px}
+:root[data-theme="dark"] .odds-cell.odds-low-double-risk{color:#ff727b!important;text-decoration-color:#ff727b}
+.odds-cell.odds-low-double-risk.is-fixed{color:#fff!important;text-decoration-color:#ffd1d4;box-shadow:inset 0 0 0 2px #b4232d}
+/* Controllo automatico del ritorno minimo rispetto alla spesa effettiva. */
+.minimum-coverage-check{display:flex;align-items:flex-start;gap:.8rem;margin:.8rem 0 0;padding:.8rem .9rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text)}
+.coverage-checkbox{display:grid;place-items:center;flex:0 0 2rem;width:2rem;height:2rem;border:2px solid currentColor;border-radius:6px;font-size:1.25rem;line-height:1;font-weight:950}
+.coverage-copy{min-width:0;flex:1}
+.coverage-copy strong{display:block;font-size:.9rem;font-weight:900;line-height:1.25}
+.coverage-copy p{margin:.25rem 0;font-size:.85rem;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.coverage-copy small{display:block;font-size:.75rem;line-height:1.35;color:inherit;opacity:.9}
+.minimum-coverage-check.is-covered{background:#e8f7ed;border-color:#238347;color:#155b31}
+.minimum-coverage-check.is-uncovered{background:#fff0f0;border-color:#bd2b34;color:#8e1720}
+.minimum-coverage-check.is-warning{background:#fff6df;border-color:#ad7817;color:#76500a}
+.minimum-coverage-check.is-idle{background:var(--surface-2);border-color:var(--border);color:var(--muted)}
+:root[data-theme="dark"] .minimum-coverage-check.is-covered{background:#153b27;border-color:#55bd81;color:#b4f0c7}
+:root[data-theme="dark"] .minimum-coverage-check.is-uncovered{background:#401d22;border-color:#ff727b;color:#ffd5d7}
+:root[data-theme="dark"] .minimum-coverage-check.is-warning{background:#3d321b;border-color:#dfb650;color:#ffdf90}
+@media(max-width:600px){.minimum-coverage-check{gap:.6rem;padding:.7rem}.coverage-checkbox{flex-basis:1.8rem;width:1.8rem;height:1.8rem}.coverage-copy strong{font-size:.82rem}.coverage-copy p{font-size:.8rem}}
 @media(max-width:800px){.quote-sheet-scroll{--quote-team-width:94px;--quote-group-head-height:35px;--quote-head-total-height:60px;max-height:62vh;border-radius:7px}.quote-sheet{font-size:.7rem}.quote-sheet th,.quote-sheet td{padding:.16rem .2rem}.quote-sheet thead tr:nth-child(2) th{height:25px}.quote-sheet .quote-date{min-width:68px}.quote-sheet .quote-time{min-width:49px}.quote-sheet .quote-code{display:none}.quote-sheet th.quote-outcome-head,.quote-sheet .quote-cell,.odds-cell{min-width:45px;width:45px}.quote-sheet .quote-cell{height:28px}.odds-cell{height:27px;font-size:.68rem}.quote-sheet-help{font-size:.73rem}}
 @media(max-width:420px){.quote-sheet-scroll{--quote-team-width:80px}.quote-sheet .quote-team{font-size:.68rem;padding:.15rem}.quote-sheet .quote-date{min-width:62px}.quote-sheet .quote-time{min-width:45px}}
 @media print{#matches{display:none!important}}
