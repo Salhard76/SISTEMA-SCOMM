@@ -1,5 +1,5 @@
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v18-20261029';
-import { normalizeMatchList } from './selection.js?v=sb-v18-20261029';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v19-20261029';
+import { normalizeMatchList } from './selection.js?v=sb-v19-20261029';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;

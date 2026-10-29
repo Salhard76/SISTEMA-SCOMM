@@ -1,20 +1,22 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v18-20261029';
-import { generateSystem } from './js/generator.js?v=sb-v18-20261029';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v18-20261029';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v18-20261029';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v18-20261029';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v18-20261029';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v18-20261029';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from './js/selection.js?v=sb-v18-20261029';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v18-20261029';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v18-20261029';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v18-20261029';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v19-20261029';
+import { generateSystem } from './js/generator.js?v=sb-v19-20261029';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v19-20261029';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v19-20261029';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v19-20261029';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v19-20261029';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v19-20261029';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v19-20261029';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v19-20261029';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v19-20261029';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v19-20261029';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
+let manualInputSaveTimeout = null;
+let stakeRenderTimeout = null;
 let lastDynamicFilterSignature = null;
 const debouncedUpdateCounter = () => {
   clearTimeout(filterUpdateTimeout);
@@ -36,6 +38,28 @@ function updateStakeModeVisibility() {
   const budgetMode = $('stakeMode')?.value === 'total-budget';
   $('stakePerColumnField').hidden = budgetMode;
   $('systemBudgetField').hidden = !budgetMode;
+}
+function updateClearQuotesButton() {
+  const button = $('clearQuotes');
+  if (button) button.disabled = !state.matches.some(match => Array.isArray(match.selezionati) && match.selezionati.length > 0);
+}
+function invalidateGeneratedSystem(message = 'Le selezioni sono cambiate. Premi “Genera sistema” per ricalcolare le colonne.') {
+  state.rawColumns = [];
+  state.finalColumns = [];
+  state.lastGenerated = false;
+  state.exclusive = false;
+  state.columnsSig = null;
+  state.renderSig = null;
+  state.visibleRows = 100;
+  $('tableWrap').innerHTML = `<p class="empty-state">${escapeHtml(message)}</p>`;
+  $('summary').textContent = message;
+  $('printTableWrap').innerHTML = '';
+  $('integralPrint').innerHTML = '';
+  $('exportCsv').disabled = true;
+  $('exportText').disabled = true;
+  $('printTable').disabled = true;
+  $('printIntegral').disabled = true;
+  renderStakePreview(0);
 }
 function renderStakePreview(columnCount = (state.lastGenerated ? state.finalColumns.length : 0)) {
   const node = $('stakePreview');
@@ -286,6 +310,10 @@ function downloadBackup() {
   $('backupStatus').textContent = 'Backup creato. Conserva il file JSON in una cartella sicura o trasferiscilo sul dispositivo dove vuoi ripristinare i dati.';
 }
 function applyBackup(data) {
+  clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
+  clearTimeout(stakeSaveTimeout); stakeSaveTimeout = null;
+  clearTimeout(manualInputSaveTimeout); manualInputSaveTimeout = null;
+  clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
   lastDynamicFilterSignature = null;
   // L’elenco viene scritto prima di modificare lo stato dell’interfaccia: se lo storage non è disponibile,
   // il ripristino si interrompe senza sostituire le partite correnti.
@@ -313,10 +341,9 @@ function applyBackup(data) {
   renderTeamListEditor();
   updateSeasonReminder();
   showPdfDiagnostics(state.pdfDiagnostics, state.matches.length);
+  invalidateGeneratedSystem('Backup ripristinato. Premi “Genera sistema” per ricostruire le colonne.');
   renderMatches();
-  $('tableWrap').innerHTML = '<p class="empty-state">Backup ripristinato. Premi “Genera sistema” per ricostruire le colonne.</p>';
   $('summary').textContent = 'Dati ripristinati. Il sistema va rigenerato per aggiornare conteggi e colonne.';
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
   saveState();
   $('backupStatus').textContent = `Ripristino completato: ${state.matches.length} partite, elenco squadre e impostazioni caricate.${state.legacyAdjustedCount ? ` ${state.legacyAdjustedCount} selezioni non più valide sono state corrette durante il ripristino: controlla il foglio quote.` : ''} Premi “Genera sistema” per ricalcolare le colonne.`;
   status(state.legacyAdjustedCount ? `Backup ripristinato con avviso: ${state.legacyAdjustedCount} selezioni non più valide sono state corrette. Controlla il foglio quote.` : 'Backup ripristinato correttamente. Controlla i dati e genera nuovamente il sistema.', state.legacyAdjustedCount ? 'warning' : 'success');
@@ -382,6 +409,7 @@ function renderMatches() {
   const root = $('matches');
   if (!state.matches.length) {
     root.innerHTML = '<p class="empty-state">Carica le partite per visualizzare il foglio quote.</p>';
+    updateClearQuotesButton();
     renderDynamicFilters(); updateCounter(); return;
   }
   // La griglia viene ridisegnata a ogni tocco: senza questo ripristino lo scorrimento orizzontale
@@ -429,6 +457,7 @@ function renderMatches() {
     const again = [...root.querySelectorAll('button[data-outcome-key][data-match-id]')].find(b => b.dataset.matchId === focused.matchId && b.dataset.outcomeKey === focused.key);
     again?.focus({ preventScroll: true });
   }
+  updateClearQuotesButton();
   renderDynamicFilters();
   updateCounter();
 }
@@ -791,10 +820,9 @@ function showPdfDiagnostics(diagnostics, importedCount = 0) {
 }
 
 function clearImportedMatches(message) {
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
+  state.matches = []; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
+  invalidateGeneratedSystem(message);
   renderMatches(); saveState();
-  $('tableWrap').innerHTML = '<p class="empty-state">Nessuna partita importata. Inserisci o importa nuove quote.</p>';
-  $('summary').textContent = message;
 }
 function loadMatches(matches, source, diagnostics = matches?.diagnostics || null) {
   const isPdfSource = /pdf/i.test(source);
@@ -804,6 +832,7 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
   if (isPdfSource) {
     const serieA = matches.filter(m => String(m.competizione || '').trim().toLocaleLowerCase('it-IT') === 'serie a');
     if (!serieA.length) {
+      showPdfDiagnostics(diagnostics, 0);
       clearImportedMatches('Il PDF non contiene partite di Serie A riconosciute.');
       status('PDF letto, ma non sono state trovate partite di Serie A. Le partite precedenti sono state rimosse; puoi caricare un altro PDF o inserire le quote manualmente.', 'error');
       return;
@@ -817,10 +846,9 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
   state.legacyAdjustedCount = 0;
   state.source = source;
   state.pdfDiagnostics = isPdfSource ? (diagnostics || null) : null;
-  state.lastGenerated = false;
+  invalidateGeneratedSystem('Partite caricate. Seleziona le quote e premi “Genera sistema” per calcolare le colonne.');
   renderMatches(); saveState();
   status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Puoi selezionare al massimo ${MAX_MATCHES} partite, con ${MAX_CHOICES_PER_MATCH} scelte per partita.${filteredFound > MAX_LOADED_MATCHES ? ` Attenzione: ${filteredFound - MAX_LOADED_MATCHES} partite oltre il limite di ${MAX_LOADED_MATCHES} non sono state caricate.` : ''}`, filteredFound > MAX_LOADED_MATCHES ? 'warning' : 'success');
-  $('tableWrap').innerHTML = '<p class="empty-state">Premi “Genera sistema” per vedere le colonne.</p>';
 }
 // Entrambe le modalità restano visibili: nessuna scheda da attivare su Android.
 $('parseManual').addEventListener('click', () => {
@@ -829,7 +857,14 @@ $('parseManual').addEventListener('click', () => {
   if (!matches.length) { status('Non ho riconosciuto partite valide. Usa: Casa - Trasferta; quota 1; quota X; quota 2; mercati opzionali come O2.5=1.90.', 'error'); return; }
   loadMatches(matches, 'input manuale');
 });
-$('clearInput').addEventListener('click', () => { $('manualInput').value = ''; status('Testo svuotato.'); saveState(); });
+$('manualInput').addEventListener('input', () => {
+  clearTimeout(manualInputSaveTimeout);
+  manualInputSaveTimeout = setTimeout(saveState, 250);
+});
+$('clearInput').addEventListener('click', () => {
+  clearTimeout(manualInputSaveTimeout);
+  $('manualInput').value = ''; status('Testo svuotato.'); saveState();
+});
 $('pdfFile').addEventListener('change', async event => {
   showPdfDiagnostics(null);
   const file = event.target.files?.[0];
@@ -864,9 +899,9 @@ $('matches').addEventListener('click', event => {
   const removeButton = event.target.closest('.remove-match');
   if (removeButton) {
     state.matches = state.matches.filter(match => match.id !== removeButton.dataset.id);
-    state.lastGenerated = false;
-    renderMatches(); saveState(); updateCounter();
-    status('Partita rimossa dal foglio quote.');
+    invalidateGeneratedSystem('Partita rimossa. Premi “Genera sistema” per ricostruire le colonne.');
+    renderMatches(); saveState();
+    status('Partita rimossa dal foglio quote. Il sistema precedente è stato invalidato.');
     return;
   }
   const quoteButton = event.target.closest('button[data-outcome-key][data-match-id]');
@@ -888,12 +923,8 @@ $('matches').addEventListener('click', event => {
     status(result.message || 'Non è stato possibile modificare la selezione.', 'error');
     return;
   }
-  state.lastGenerated = false;
-  state.rawColumns = []; state.finalColumns = [];
-  $('tableWrap').innerHTML = '<p class="empty-state">Selezioni modificate. Premi “Genera sistema” per ricalcolare le colonne.</p>';
-  $('printTableWrap').innerHTML = '';
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
-  renderMatches(); saveState(); updateCounter();
+  invalidateGeneratedSystem('Selezioni modificate. Premi “Genera sistema” per ricalcolare le colonne.');
+  renderMatches(); saveState();
   if (match.selezionati.length === 2) {
     const selectedLabels = match.selezionati.map(key => match.esiti.find(item => `${item.market}:${item.outcome}` === key)?.label || key);
     status(`Doppia automatica: ${match.casa} – ${match.trasferta}: ${selectedLabels.join(' + ')} (sono ammesse anche quote di mercati diversi).`, 'success');
@@ -916,7 +947,6 @@ $('dynamicFilters').addEventListener('input', event => {
   debouncedUpdateCounter();
 });
 // Con 1.024 colonne il ridisegno costa mezzo secondo: lo si fa a fine digitazione, non a ogni tasto.
-let stakeRenderTimeout = null;
 function scheduleStakeUpdate() {
   clearTimeout(stakeSaveTimeout);
   stakeSaveTimeout = setTimeout(saveState, 250);
@@ -1146,19 +1176,41 @@ window.addEventListener('appinstalled', () => {
   $('installHelp').open = false;
 });
 
+$('clearQuotes').addEventListener('click', () => {
+  clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
+  const selectionCount = state.matches.reduce((count, match) => count + (Array.isArray(match.selezionati) ? match.selezionati.length : 0), 0);
+  if (!selectionCount) {
+    updateClearQuotesButton();
+    status('Non ci sono quote selezionate da azzerare. Le quote importate sono intatte.');
+    return;
+  }
+  state.matches = clearMatchSelections(state.matches);
+  lastDynamicFilterSignature = null;
+  invalidateGeneratedSystem('Selezioni azzerate. Le partite e le quote importate restano disponibili: seleziona nuovi esiti e genera il sistema.');
+  renderMatches();
+  $('beforeCount').textContent = '0';
+  $('afterCount').textContent = '0';
+  saveState();
+  status(`Azzera quote: rimosse ${selectionCount} selezioni. Le quote e le partite importate, il testo manuale, i filtri e le impostazioni sono stati conservati.`, 'success');
+});
+
 $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
-  state.matches = []; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0;
+  clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
+  clearTimeout(stakeSaveTimeout); stakeSaveTimeout = null;
+  clearTimeout(manualInputSaveTimeout); manualInputSaveTimeout = null;
+  clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
+  state.matches = []; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0; state.restoreNotice = '';
   $('manualInput').value = ''; $('stake').value = '0.10'; $('stakeMode').value = 'per-column'; $('systemBudget').value = '10.00'; updateStakeModeVisibility();
   state.outcomeFilterLimits = {};
-  renderDynamicFilters();
+  lastDynamicFilterSignature = null;
   try { localStorage.removeItem(savedKey); } catch { /* storage non disponibile */ }
-  renderMatches(); $('summary').textContent = 'Seleziona le quote dal foglio e genera il sistema.';
-  $('printTableWrap').innerHTML = ''; state.rawColumns = []; state.finalColumns = []; state.lastGenerated = false;
-  $('tableWrap').innerHTML = '<p class="empty-state">La tabella del sistema apparirà qui.</p>';
-  renderStakePreview(0);
-  $('printTableWrap').innerHTML = '';
-  $('exportCsv').disabled = $('printTable').disabled = $('exportText').disabled = $('printIntegral').disabled = true;
+  invalidateGeneratedSystem('Seleziona le quote dal foglio e genera il sistema.');
+  renderMatches();
+  $('beforeCount').textContent = '0'; $('afterCount').textContent = '0';
+  $('pdfFileName').textContent = 'Nessun file selezionato.';
+  showPdfDiagnostics(null);
+  $('summary').textContent = 'Seleziona le quote dal foglio e genera il sistema.';
   status('Sistema azzerato.');
 });
 restoreState();
@@ -1176,7 +1228,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v18-20261029');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v19-20261029');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

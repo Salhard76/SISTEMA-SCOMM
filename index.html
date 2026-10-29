@@ -8,20 +8,20 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sb-v18-20261029">
-  <link rel="icon" type="image/png" sizes="192x192" href="./app-icon-192.png?v=sb-v18-20261029">
-  <link rel="apple-touch-icon" sizes="180x180" href="./app-apple-touch-icon.png?v=sb-v18-20261029">
-  <link rel="manifest" href="./manifest.webmanifest?v=sb-v18-20261029">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sb-v19-20261029">
+  <link rel="icon" type="image/png" sizes="192x192" href="./app-icon-192.png?v=sb-v19-20261029">
+  <link rel="apple-touch-icon" sizes="180x180" href="./app-apple-touch-icon.png?v=sb-v19-20261029">
+  <link rel="manifest" href="./manifest.webmanifest?v=sb-v19-20261029">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <meta name="author" content="SalHard">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=sb-v18-20261029">
+  <link rel="stylesheet" href="style.css?v=sb-v19-20261029">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=sb-v18-20261029"></script>
+  <script type="module" src="app.js?v=sb-v19-20261029"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sb-v18-20261029" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sb-v19-20261029" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -38,7 +38,7 @@
     <div class="info-sections">
       <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su PC e Android apri il link diretto al Foglio Quote per Manifestazione, scarica il bollettino e poi selezionalo da Download/Scaricati. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
       <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra formano automaticamente una <strong>doppia</strong>, anche tra mercati diversi (per esempio 1 + X2 oppure 1 + Over 2.5). Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita, anche di mercati diversi</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
-      <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
+      <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. Il pulsante <strong>Azzera quote</strong> cancella solo le selezioni e conserva partite e quote importate, testo manuale, filtri e impostazioni. <strong>Reset completo</strong> cancella invece le partite e i filtri. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
       <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
       <section><h3>5. Backup e squadre</h3><p>Da “Backup e ripristino” esporta un JSON e conservalo fuori dal dispositivo. Il ripristino sostituisce le impostazioni locali dopo conferma. L'elenco squadre si può modificare; quello di riferimento incluso nell'app non è un aggiornamento live dal sito ufficiale.</p></section>
       <section><h3>6. Installa sulla schermata Home</h3><p>Su Android usa “Installa app” oppure il menu ⋮ di Chrome → “Installa app” / “Aggiungi a schermata Home”. Su iPhone: Safari → Condividi → “Aggiungi alla schermata Home”. Le opzioni disponibili dipendono dal browser.</p></section>
@@ -149,6 +149,7 @@
       <div class="generate-controls">
         <div class="field system-limit"><label>Limite massimo del sistema</label><p><strong>1.024 colonne</strong></p><p class="help">10 partite × massimo 2 esiti ciascuna: 2¹⁰ = 1.024.</p></div>
         <button id="generate" class="button primary" type="button">Genera sistema</button>
+        <button id="clearQuotes" class="button secondary" type="button" disabled title="Rimuove le selezioni, ma conserva partite e quote importate" aria-label="Azzera quote selezionate senza eliminare le quote importate">Azzera quote</button>
         <button id="reset" class="button danger" type="button">Reset completo</button>
       </div>
       <div class="bonus-panel">

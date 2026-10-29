@@ -1,5 +1,12 @@
 # Sistema Scommesse Builder
 
+## Novità versione 19 — azzera selezioni senza perdere le quote importate
+- **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, filtri, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.
+- **Invalidazione coerente dei risultati**: quando si caricano nuove partite, si rimuove una partita, si cambia una selezione o si ripristina un backup, le vecchie colonne non possono più restare esportabili per errore.
+- **Persistenza e timer più sicuri**: il testo scritto nell’area manuale si salva automaticamente; il reset completo e il ripristino backup cancellano i timer pendenti per evitare che una vecchia modifica risalvi dati sopra il reset o il backup appena importato. Il reset pulisce anche diagnostica PDF e nome del file mostrato.
+- **Cache aggiornata**: release `sb-v19-20261029`; il service worker e tutti i moduli usano lo stesso identificatore.
+- **Rilettura del codice**: suite di regressione estesa per l’azzeramento selezioni e l’invalidazione dei sistemi obsoleti; controllata la sintassi dei moduli, il precache e i riferimenti delle risorse.
+
 ## Novità versione 18 — icona principale più leggibile
 - **Composizione ingrandita**: le icone colorate usate per installazione, manifest e Apple Touch riducono le bande azzurre laterali e rendono la mascotte più grande senza tagliare verticalmente la fiamma o il vaso. La composizione è stata allargata moderatamente perché l'illustrazione originale arriva già fino ai bordi superiore e inferiore.
 - **Compatibilità**: il manifesto punta a nuovi file `app-icon-*`; il logo interno dell'interfaccia resta monocromatico a contorni e la favicon SB resta ad alto contrasto.
@@ -31,7 +38,7 @@
 - **Tabella a video paginata**: 100 righe alla volta con «Mostra altre 100» / «Mostra tutte». Generazione con CPU 4×: 4,8 s → 0,8 s. CSV, testo e stampe contengono sempre tutte le colonne.
 - **Service worker**: l'app si apre dalla cache dopo 3,5 s se la rete è lenta (prima attendeva la rete: 8 s nella prova), la richiesta continua in background e aggiorna la cache. L'HTML viene rivalidato con `cache: 'no-cache'`, così una nuova release non resta nascosta dalla cache HTTP del browser. Se un aggiornamento viene installato mentre l'app è aperta compare un avviso.
 - **Stampa colonne**: le quote fisse hanno un riquadro nero oltre al grassetto, visibile anche in bianco e nero e sulle righe grigie.
-- **Pulizia**: rimosso codice duplicato nel parser PDF; versione unica `sb-v15-20261029` in tutti i file; 4 nuovi test.
+- **Pulizia**: rimosso codice duplicato nel parser PDF; versione unica della release v14 in tutti i file; 4 nuovi test.
 
 
 ## Novità versione 13 — importazione robusta delle quote mancanti

@@ -9,7 +9,7 @@ import { summarizeColumnRange } from '../js/calculator.js';
 import { calculateStakeAllocation, formatEuroPrecise } from '../js/stake.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, selectionMarketKey } from '../js/selection.js';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from '../js/selection.js';
 import { buildQuoteSheetGroups, flattenQuoteSheetColumns, matchesQuoteColumn } from '../js/quote-sheet.js';
 
 // I test async venivano lanciati senza await: un fallimento compariva dopo il "✓" (o mai).
@@ -20,6 +20,51 @@ function test(name, fn) { queue.push({ name, fn }); }
 
 const pageHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const pageJs = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+test('UI: Azzera quote è tra Genera sistema e Reset completo', () => {
+  const generateIndex = pageHtml.indexOf('id="generate"');
+  const clearIndex = pageHtml.indexOf('id="clearQuotes"');
+  const resetIndex = pageHtml.indexOf('id="reset"');
+  assert.ok(generateIndex >= 0 && clearIndex > generateIndex && resetIndex > clearIndex, 'ordine dei pulsanti non corretto');
+  assert.match(pageHtml, /id="clearQuotes"[^>]*disabled[^>]*aria-label="Azzera quote selezionate senza eliminare le quote importate"/);
+  assert.match(pageJs, /\$\('clearQuotes'\)\.addEventListener\('click'/);
+  assert.match(pageJs, /state\.matches = clearMatchSelections\(state\.matches\)/);
+  assert.match(pageJs, /Le quote e le partite importate, il testo manuale, i filtri e le impostazioni sono stati conservati/);
+  assert.match(pageHtml, /Azzera quote<\/strong> cancella solo le selezioni e conserva partite e quote importate/);
+});
+test('Azzera quote: rimuove soltanto le selezioni e mantiene partite, quote e metadati', () => {
+  const source = {
+    id: 'bologna-monza', casa: 'Bologna', trasferta: 'Monza', data: '31/10', ora: '15.00',
+    pal: '36441', avv: '1447', competizione: 'Serie A', tipo: 'doppia',
+    esiti: [
+      { market: '1X2', outcome: '1', label: '1', quota: 1.67 },
+      { market: 'Under/Over 2.5', outcome: 'Over 2.5', label: 'Over 2.5', quota: 1.80 }
+    ],
+    selezionati: ['1X2:1', 'Under/Over 2.5:Over 2.5']
+  };
+  const cleared = clearMatchSelections([source]);
+  assert.equal(cleared.length, 1);
+  assert.deepEqual(cleared[0].selezionati, []);
+  assert.equal(cleared[0].tipo, 'fissa');
+  assert.deepEqual(cleared[0].esiti, source.esiti);
+  assert.equal(cleared[0].casa, 'Bologna');
+  assert.equal(cleared[0].trasferta, 'Monza');
+  assert.equal(cleared[0].pal, '36441');
+  assert.deepEqual(source.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5'], 'la funzione non deve mutare l’oggetto sorgente');
+});
+test('Testo manuale: salvataggio automatico e confini di reset/import senza timer obsoleti', () => {
+  assert.match(pageJs, /\$\('manualInput'\)\.addEventListener\('input',[\s\S]*?setTimeout\(saveState, 250\)/);
+  assert.match(pageJs, /function applyBackup\(data\) \{[\s\S]*?clearTimeout\(manualInputSaveTimeout\)/);
+  assert.match(pageJs, /\$\('reset'\)\.addEventListener\('click',[\s\S]*?clearTimeout\(manualInputSaveTimeout\)/);
+  assert.match(pageJs, /\$\('clearQuotes'\)\.addEventListener\('click',[\s\S]*?clearTimeout\(filterUpdateTimeout\)/);
+});
+test('Le modifiche alle partite invalidano la tabella precedente e le esportazioni', () => {
+  assert.match(pageJs, /function invalidateGeneratedSystem\([\s\S]*?state\.rawColumns = \[\][\s\S]*?state\.finalColumns = \[\][\s\S]*?state\.lastGenerated = false/);
+  assert.match(pageJs, /\$\('exportCsv'\)\.disabled = true/);
+  assert.match(pageJs, /\$\('integralPrint'\)\.innerHTML = ''/);
+  assert.match(pageJs, /Partita rimossa\. Premi “Genera sistema” per ricostruire le colonne/);
+  assert.match(pageJs, /invalidateGeneratedSystem\('Partite caricate\./);
+});
 
 test('UI: importazione automatica via URL rimossa e link diretto al foglio quote per manifestazione', () => {
   assert.doesNotMatch(pageHtml, /id="(?:pdfUrl|importPdf)"/);
@@ -43,13 +88,13 @@ test('Info: firma stilizzata SalHard accessibile e autore dichiarato', () => {
   assert.match(readFileSync(new URL('../style.css', import.meta.url), 'utf8'), /\.info-author-signature text[^{]*\{[^}]*cursive/s);
 });
 
-test('Release v18: parser quote mancanti, logo interno outline e icone app ottimizzate', () => {
+test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () => {
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v18-20261029/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v18-20261029/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v18-20261029/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v19-20261029/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v19-20261029/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v19-20261029/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -876,13 +921,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v18: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v19: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v18-20261029/);
+  assert.match(sw, /sb-v19-20261029/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

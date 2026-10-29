@@ -1,5 +1,5 @@
 /* Selezione quote: 1 quota = fissa; 2 quote, anche di mercati diversi, = doppia del sistema. */
-import { MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v18-20261029';
+import { MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v19-20261029';
 
 export function selectionMarketKey(outcome) {
   const market = String(outcome?.market ?? '')
@@ -53,4 +53,11 @@ export function normalizeMatchList(matches) {
     return match;
   });
   return { matches: normalizedMatches, adjustedCount };
+}
+
+/** Azzera soltanto gli esiti selezionati, preservando partite, quote e metadati importati. */
+export function clearMatchSelections(matches) {
+  return (Array.isArray(matches) ? matches : []).map(match =>
+    normalizeMatchSelection({ ...match, selezionati: [] })
+  );
 }
