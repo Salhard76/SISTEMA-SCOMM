@@ -428,3 +428,41 @@ body.info-dialog-fallback::after{content:"";position:fixed;inset:0;background:rg
 }
 
 .table-more{margin:.75rem 0;padding:.6rem .75rem;border:1px dashed var(--border);border-radius:12px;text-align:center}.table-more p{margin:.1rem 0 .55rem;font-size:.84rem;color:var(--muted)}.table-more .button-row{justify-content:center}
+
+
+/* V23 — Copertura intelligente: evidenzia l'ultima partita e le quote complementari. */
+.quote-sheet .quote-match-row.coverage-target-match .quote-team,
+.quote-sheet .quote-match-row.coverage-target-match .quote-meta-col{background:color-mix(in srgb,#e9a928 17%,var(--surface))!important}
+.quote-sheet .quote-match-row.coverage-target-match .quote-team:first-child{box-shadow:inset 4px 0 #d28a0b}
+.odds-cell.odds-cover-suggested{outline:2px solid #d28a0b!important;outline-offset:-3px;background:#fff0c2!important;color:#704600!important;font-weight:900!important}
+:root[data-theme="dark"] .quote-sheet .quote-match-row.coverage-target-match .quote-team,
+:root[data-theme="dark"] .quote-sheet .quote-match-row.coverage-target-match .quote-meta-col{background:#47391d!important}
+:root[data-theme="dark"] .odds-cell.odds-cover-suggested{background:#59451e!important;color:#ffe5a2!important;outline-color:#e7b84d!important}
+.smart-coverage-panel{margin:.85rem 0 0;padding:1rem;border:1px solid #d5a13a;border-radius:14px;background:color-mix(in srgb,#fff6df 45%,var(--surface));color:var(--text)}
+.smart-coverage-heading{display:flex;align-items:center;justify-content:space-between;gap:.7rem}
+.smart-coverage-heading h3{margin:.1rem 0 .4rem;font-size:1.05rem}
+.coverage-last-badge{flex:0 0 auto;padding:.3rem .55rem;border-radius:999px;background:#f6e4b8;color:#75500c;font-size:.68rem;font-weight:900;letter-spacing:.04em}
+.smart-coverage-fixture{display:flex;justify-content:space-between;gap:.6rem;align-items:baseline;margin:.35rem 0 .8rem;padding:.65rem .75rem;border-radius:9px;background:var(--surface);font-size:.95rem}
+.smart-coverage-fixture span{color:var(--muted);font-size:.8rem}
+.coverage-results{display:grid;gap:.45rem;margin:.7rem 0}
+.coverage-results>strong,.coverage-candidates>strong{font-size:.85rem}
+.coverage-result-row{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.55rem .65rem;border:1px solid var(--border);border-radius:9px;background:var(--surface)}
+.coverage-result-row>span{display:grid;gap:.12rem;min-width:0}
+.coverage-result-row small{color:var(--muted);font-size:.72rem}
+.coverage-result-row select{max-width:52%;min-width:130px;padding:.45rem;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.smart-coverage-status{margin:.65rem 0;padding:.65rem .75rem;border-radius:9px;background:var(--surface-2);font-size:.84rem;line-height:1.45}
+.coverage-candidates{display:grid;gap:.5rem;margin:.75rem 0}
+.coverage-candidate{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.25rem .8rem;padding:.7rem;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.coverage-candidate-ready{border-color:#d4a13c;background:color-mix(in srgb,#fff0c2 45%,var(--surface))}
+.coverage-candidate-main{display:grid;gap:.12rem}
+.coverage-candidate-market,.coverage-candidate-main small,.coverage-candidate-stake span{font-size:.72rem;color:var(--muted)}
+.coverage-candidate-main>strong{font-size:.95rem}
+.coverage-candidate-stake{display:grid;justify-items:end;align-content:center;gap:.15rem}
+.coverage-candidate-stake>strong{font-size:1.1rem;color:#14683c;font-variant-numeric:tabular-nums}
+.coverage-candidate p{grid-column:1/-1;margin:.2rem 0 0;font-size:.76rem;color:var(--muted)}
+.smart-coverage-note{margin:.65rem 0 0;color:var(--muted);font-size:.76rem;line-height:1.4}
+:root[data-theme="dark"] .smart-coverage-panel{background:#342d1c;border-color:#8f6e2b}
+:root[data-theme="dark"] .coverage-last-badge{background:#58451f;color:#ffe4a0}
+:root[data-theme="dark"] .coverage-candidate-ready{background:#44391f;border-color:#9d792e}
+:root[data-theme="dark"] .coverage-candidate-stake>strong{color:#a8e8bd}
+@media(max-width:600px){.smart-coverage-panel{padding:.75rem}.smart-coverage-heading h3{font-size:.95rem}.coverage-result-row{align-items:stretch;flex-direction:column}.coverage-result-row select{max-width:none;width:100%}.smart-coverage-fixture{align-items:flex-start;flex-direction:column;gap:.15rem}.coverage-candidate{gap:.3rem}.coverage-candidate-stake>strong{font-size:1rem}}

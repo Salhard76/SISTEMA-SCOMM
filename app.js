@@ -1,15 +1,16 @@
-import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v22-20261030';
-import { generateSystem } from './js/generator.js?v=sb-v22-20261030';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v22-20261030';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v22-20261030';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v22-20261030';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v22-20261030';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v22-20261030';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v22-20261030';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v22-20261030';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v22-20261030';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v22-20261030';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v22-20261030';
+import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v23-20261030';
+import { generateSystem } from './js/generator.js?v=sb-v23-20261030';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v23-20261030';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v23-20261030';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v23-20261030';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v23-20261030';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v23-20261030';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v23-20261030';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v23-20261030';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v23-20261030';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v23-20261030';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v23-20261030';
+import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake } from './js/cover-bet.js?v=sb-v23-20261030';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -448,12 +449,102 @@ function selectedClass(match, key) {
   if (!selected.includes(key)) return '';
   return selected.length > 1 ? 'is-double' : 'is-fixed';
 }
+function getSmartCoverageContext() {
+  const lastMatch = getLastChronologicalMatch(state.matches);
+  if (!lastMatch) return null;
+  const active = state.matches.filter(match => (match.selezionati || []).length > 0);
+  const previousMatches = active.filter(match => match.id !== lastMatch.id);
+  const candidates = (lastMatch.selezionati || []).flatMap(key => {
+    const selected = lastMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key);
+    return selected ? findExactCoverCandidates(lastMatch, selected).map(candidate => ({ ...candidate, selected })) : [];
+  });
+  const uniqueCandidates = [...new Map(candidates.map(item => [
+    `${item.selected.market}:${item.selected.outcome}|${item.outcome.market}:${item.outcome.outcome}`, item
+  ])).values()];
+  const allocation = state.lastGenerated ? getStakeAllocation(state.finalColumns.length) : null;
+  const returns = state.lastGenerated && allocation?.valid && previousMatches.length
+    ? calculateLiveReturns({
+      columns: state.finalColumns,
+      previousMatches,
+      lastMatch,
+      perColumnStake: allocation.perColumn,
+      bonusForColumn: column => estimateBonusFraction(column, $('sisalBonus')?.checked !== false)
+    })
+    : [];
+  const allPreviousKnown = previousMatches.length > 0
+    && previousMatches.every(match => Boolean(match.esitoEffettivo));
+  const anyPreviousLost = previousMatches.some(match => match.esitoEffettivo === '__lost__');
+  return { lastMatch, previousMatches, candidates: uniqueCandidates, allocation, returns, allPreviousKnown, anyPreviousLost };
+}
+
+function renderSmartCoveragePanel() {
+  const root = $('smartCoveragePanel');
+  if (!root) return;
+  const context = getSmartCoverageContext();
+  if (!context) {
+    root.hidden = true;
+    root.innerHTML = '';
+    return;
+  }
+  const { lastMatch, previousMatches, candidates, returns, allocation, allPreviousKnown, anyPreviousLost } = context;
+  root.hidden = false;
+  const statusRows = previousMatches.map(match => {
+    const selected = (match.selezionati || []).map(key => match.esiti?.find(item => `${item.market}:${item.outcome}` === key)).filter(Boolean);
+    const options = selected.map(item => {
+      const key = `${item.market}:${item.outcome}`;
+      return `<option value="${escapeHtml(key)}" ${match.esitoEffettivo === key ? 'selected' : ''}>${escapeHtml(item.label)} · ${escapeHtml(formatQuota(item.quota))}</option>`;
+    }).join('');
+    const bothOption = selected.length === 2 ? `<option value="__both__" ${match.esitoEffettivo === '__both__' ? 'selected' : ''}>Entrambe le selezioni vincenti</option>` : '';
+    return `<label class="coverage-result-row"><span><strong>${escapeHtml(match.casa)} – ${escapeHtml(match.trasferta)}</strong><small>${escapeHtml([match.data, match.ora].filter(Boolean).join(' · '))}</small></span><select data-coverage-result="${escapeHtml(match.id)}" aria-label="Risultato effettivo ${escapeHtml(match.casa)} – ${escapeHtml(match.trasferta)}"><option value="">Da verificare</option>${options}${bothOption}<option value="__lost__" ${match.esitoEffettivo === '__lost__' ? 'selected' : ''}>Nessuna selezione vincente</option></select></label>`;
+  }).join('');
+
+  const candidateRows = candidates.map(candidate => {
+    const actualReturn = returns.find(item => `${item.selected.market}:${item.selected.outcome}` === `${candidate.selected.market}:${candidate.selected.outcome}`);
+    const target = actualReturn?.grossReturn ?? 0;
+    const stake = calculateCoverStake(target, candidate.outcome.quota);
+    const coverClass = stake ? 'coverage-candidate-ready' : 'coverage-candidate-pending';
+    const amount = stake ? `<strong>${formatEuro(stake.stake)}</strong>` : '<strong>In attesa</strong>';
+    const detail = stake
+      ? `Ritorno da proteggere ${formatEuro(target)} · Ritorno copertura ${formatEuro(stake.coverGrossReturn)} · Ritorno bilanciato dopo la puntata di copertura ${formatEuro(stake.balancedGrossAfterCoverStake)} (prima della spesa del sistema)`
+      : 'Genera il sistema e registra i risultati precedenti per calcolare la puntata';
+    return `<article class="coverage-candidate ${coverClass}">
+      <div class="coverage-candidate-main"><span class="coverage-candidate-market">${escapeHtml(candidate.outcome.market)}</span><strong>${escapeHtml(candidate.outcome.label)}</strong><small>Controparte di ${escapeHtml(candidate.selected.label)} · quota ${escapeHtml(formatQuota(candidate.outcome.quota))}</small></div>
+      <div class="coverage-candidate-stake"><span>Puntata suggerita</span>${amount}</div>
+      <p>${escapeHtml(detail)}</p>
+    </article>`;
+  }).join('');
+
+  let message = '';
+  if (!previousMatches.length) {
+    message = 'Servono almeno due partite selezionate: la copertura si attiva quando le partite precedenti sono terminate.';
+  } else if (anyPreviousLost) {
+    message = 'Almeno una partita precedente non ha centrato le selezioni: il sistema non è più in corsa per questa copertura.';
+  } else if (!allPreviousKnown) {
+    message = 'Seleziona per ogni partita precedente l’esito effettivamente verificatosi. La copertura si calcola solo quando tutte risultano vincenti.';
+  } else if (!state.lastGenerated || !allocation?.valid) {
+    message = 'Risultati precedenti registrati. Genera il sistema per calcolare il ritorno effettivo ancora in gioco e la puntata di copertura.';
+  } else if (!returns.length || !returns.some(item => item.grossReturn > 0)) {
+    message = 'Con i risultati inseriti non risultano colonne vincenti in attesa dell’ultima partita.';
+  } else {
+    message = 'Le partite precedenti risultano vincenti. Le puntate suggerite pareggiano il ritorno lordo tra l’esito selezionato e la sua controparte esatta.';
+  }
+  const note = lastMatch.selezionati?.length > 1
+    ? 'Hai due esiti selezionati nell’ultima partita: ogni copertura mostrata protegge il relativo ramo. Se i due esiti appartengono a mercati diversi, non è detto che una singola puntata copra entrambi.'
+    : 'La copertura è facoltativa. Il calcolo considera il ritorno lordo delle colonne ancora vincenti, la puntata per colonna e il bonus Sisal impostato.';
+  root.innerHTML = `<div class="smart-coverage-heading"><div><p class="eyebrow">FUNZIONE AGGIUNTIVA</p><h3>🛡 COPERTURA INTELLIGENTE</h3></div><span class="coverage-last-badge">ULTIMA PARTITA</span></div>
+    <p class="smart-coverage-fixture"><strong>${escapeHtml(lastMatch.casa)} – ${escapeHtml(lastMatch.trasferta)}</strong><span>${escapeHtml([lastMatch.data, lastMatch.ora].filter(Boolean).join(' · '))}</span></p>
+    ${previousMatches.length ? `<div class="coverage-results"><strong>Conferma i risultati effettivi delle partite precedenti</strong>${statusRows}</div>` : ''}
+    <p class="smart-coverage-status" role="status">${escapeHtml(message)}</p>
+    ${candidates.length ? `<div class="coverage-candidates"><strong>Quote di controparte disponibili</strong>${candidateRows}</div>` : '<p class="help">Non è stata trovata una controparte esatta tra le quote importate per gli esiti selezionati nell’ultima partita.</p>'}
+    <p class="smart-coverage-note">${escapeHtml(note)}</p>`;
+}
+
 function renderMatches() {
   const root = $('matches');
   if (!state.matches.length) {
     root.innerHTML = '<p class="empty-state">Carica le partite per visualizzare il foglio quote.</p>';
     updateClearQuotesButton();
-    renderDynamicFilters(); updateCounter(); return;
+    renderDynamicFilters(); updateCounter(); renderSmartCoveragePanel(); return;
   }
   // La griglia viene ridisegnata a ogni tocco: senza questo ripristino lo scorrimento orizzontale
   // tornava a zero e dopo ogni selezione bisognava ririscorrere fino al mercato desiderato.
@@ -461,6 +552,11 @@ function renderMatches() {
   const keepScroll = previousScroll ? { left: previousScroll.scrollLeft, top: previousScroll.scrollTop } : null;
   const focused = document.activeElement?.matches?.('button[data-outcome-key][data-match-id]')
     ? { matchId: document.activeElement.dataset.matchId, key: document.activeElement.dataset.outcomeKey } : null;
+  const lastChronologicalMatch = getLastChronologicalMatch(state.matches);
+  const suggestedCoverKeys = new Set((lastChronologicalMatch?.selezionati || []).flatMap(key => {
+    const selected = lastChronologicalMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key);
+    return selected ? findExactCoverCandidates(lastChronologicalMatch, selected).map(item => `${item.outcome.market}:${item.outcome.outcome}`) : [];
+  }));
   const groups = buildQuoteSheetGroups(state.matches);
   const groupHeaders = groups.map(group => `<th class="quote-group" colspan="${group.columns.length}">${escapeHtml(group.label)}</th>`).join('');
   const quoteColumns = groups.flatMap(group => group.columns);
@@ -478,15 +574,17 @@ function renderMatches() {
       const className = selectedClass(match, key);
       const lowDoubleRisk = hasUnprofitableDoublePartner(outcome, match.esiti);
       const highQuote = isHighQuote(outcome);
-      const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : '', highQuote ? 'odds-high-quote' : ''].filter(Boolean).join(' ');
+      const suggestedCover = match.id === lastChronologicalMatch?.id && suggestedCoverKeys.has(key);
+      const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : '', highQuote ? 'odds-high-quote' : '', suggestedCover ? 'odds-cover-suggested' : ''].filter(Boolean).join(' ');
       const selectionLabel = match.selezionati?.length === 2 ? 'Doppia automatica' : 'Fissa automatica';
       const riskNotice = lowDoubleRisk ? ' · Coppia di mercato a due esiti: entrambe le quote sono pari o inferiori a 2,00' : '';
       const highQuoteNotice = highQuote ? ' · Quota superiore a 3,00' : '';
-      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', coppia binaria con entrambe le quote pari o inferiori a 2' : ''}${highQuote ? ', quota superiore a 3' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}${highQuoteNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
+      const coverNotice = suggestedCover ? ' · Controparte suggerita per la copertura dell’ultima partita' : '';
+      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', coppia binaria con entrambe le quote pari o inferiori a 2' : ''}${highQuote ? ', quota superiore a 3' : ''}${suggestedCover ? ', controparte suggerita per copertura' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}${highQuoteNotice}${coverNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
     const metaTitle = [match.data, match.ora, match.palinsesto || match.pal, match.avvenimento || match.avv].filter(Boolean).join(' · ');
-    return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''}" data-match="${escapeHtml(match.id)}" title="${escapeHtml(metaTitle)}">
+    return `<tr class="quote-match-row ${match.selezionati?.length ? 'has-selection' : ''} ${match.id === lastChronologicalMatch?.id ? 'coverage-target-match' : ''}" data-match="${escapeHtml(match.id)}" title="${escapeHtml(metaTitle)}">
       <th scope="row" class="quote-team team1-cell">${escapeHtml(match.casa)}</th>
       <td class="quote-team team2-cell">${escapeHtml(match.trasferta)}</td>
       ${quoteCells}
@@ -508,6 +606,7 @@ function renderMatches() {
   updateClearQuotesButton();
   renderDynamicFilters();
   updateCounter();
+  renderSmartCoveragePanel();
 }
 function readEvents() {
   const events = [];
@@ -958,6 +1057,7 @@ $('matches').addEventListener('click', event => {
     status(result.message || 'Non è stato possibile modificare la selezione.', 'error');
     return;
   }
+  match.esitoEffettivo = '';
   invalidateGeneratedSystem('Selezioni modificate. Premi “Genera sistema” per ricalcolare le colonne.');
   renderMatches(); saveState();
   if (match.selezionati.length === 2) {
@@ -970,6 +1070,16 @@ $('matches').addEventListener('click', event => {
     status(`Fissa automatica: ${match.casa} – ${match.trasferta}, ${fixedOutcome?.label || ''}, quota ${formatQuota(fixedOutcome?.quota)}.`, 'success');
   } else status(`Selezioni rimosse da ${match.casa} – ${match.trasferta}.`);
 });
+$('smartCoveragePanel')?.addEventListener('change', event => {
+  const select = event.target.closest('select[data-coverage-result]');
+  if (!select) return;
+  const match = state.matches.find(item => item.id === select.dataset.coverageResult);
+  if (!match) return;
+  match.esitoEffettivo = select.value;
+  saveState();
+  renderSmartCoveragePanel();
+});
+
 $('dynamicFilters').addEventListener('input', event => {
   const input = event.target.closest('input[data-dynamic-limit]');
   if (!input) return;
@@ -1222,7 +1332,7 @@ $('clearQuotes').addEventListener('click', () => {
     status('Non ci sono selezioni o filtri da azzerare. Le partite e le quote importate sono intatte.');
     return;
   }
-  state.matches = clearMatchSelections(state.matches);
+  state.matches = clearMatchSelections(state.matches).map(match => ({ ...match, esitoEffettivo: '' }));
   state.outcomeFilterLimits = {};
   lastDynamicFilterSignature = null;
   invalidateGeneratedSystem('Selezioni e filtri azzerati. Le partite e le quote importate restano disponibili: seleziona nuovi esiti e genera il sistema.');
@@ -1266,7 +1376,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v22-20261030');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v23-20261030');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

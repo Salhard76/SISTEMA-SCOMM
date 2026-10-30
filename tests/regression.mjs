@@ -12,6 +12,7 @@ import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
 import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from '../js/selection.js';
 import { buildQuoteSheetGroups, flattenQuoteSheetColumns, matchesQuoteColumn } from '../js/quote-sheet.js';
+import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake } from '../js/cover-bet.js';
 
 // I test async venivano lanciati senza await: un fallimento compariva dopo il "✓" (o mai).
 // Ora si accodano e si eseguono in sequenza, attendendo ciascuno.
@@ -22,6 +23,60 @@ function test(name, fn) { queue.push({ name, fn }); }
 const pageHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const pageJs = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 
+
+test('Copertura: Doppia Chance 1X propone il 2 come controparte esatta', () => {
+  const match = { esiti: [
+    { market: 'Doppia Chance', outcome: '1X', label: '1X', quota: 1.10 },
+    { market: 'Esito Finale', outcome: '2', label: '2', quota: 6.50 }
+  ] };
+  const candidates = findExactCoverCandidates(match, match.esiti[0]);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].outcome.outcome, '2');
+  assert.equal(candidates[0].outcome.quota, 6.5);
+});
+test('Copertura: una doppia precedente può avere entrambe le selezioni vincenti', () => {
+  const previous = { id: 'prev', esitoEffettivo: '__both__', selezionati: ['Goal/NoGoal:Goal', 'Under/Over 2.5:Over 2.5'] };
+  const last = { id: 'last', selezionati: ['Doppia Chance:1X'], esiti: [{ market: 'Doppia Chance', outcome: '1X', label: '1X', quota: 1.1 }] };
+  const columns = [
+    { esiti: [{ eventId: 'prev', market: 'Goal/NoGoal', outcome: 'Goal' }, { eventId: 'last', market: 'Doppia Chance', outcome: '1X' }], quotaTotale: 10 },
+    { esiti: [{ eventId: 'prev', market: 'Under/Over 2.5', outcome: 'Over 2.5' }, { eventId: 'last', market: 'Doppia Chance', outcome: '1X' }], quotaTotale: 20 }
+  ];
+  const result = calculateLiveReturns({ columns, previousMatches: [previous, last], lastMatch: last, perColumnStake: 1 });
+  assert.equal(result[0].grossReturn, 30);
+  assert.equal(result[0].winningColumns, 2);
+});
+test('Copertura: Segna Goal Casa SÌ propone NO e viceversa', () => {
+  const match = { esiti: [
+    { market: 'Segna Goal Casa', outcome: 'SI Casa', label: 'SI Casa', quota: 1.45 },
+    { market: 'Segna Goal Casa', outcome: 'NO Casa', label: 'NO Casa', quota: 2.70 }
+  ] };
+  assert.equal(findExactCoverCandidates(match, match.esiti[0])[0].outcome.outcome, 'NO Casa');
+  assert.equal(findExactCoverCandidates(match, match.esiti[1])[0].outcome.outcome, 'SI Casa');
+});
+test('Copertura: ultima partita individuata per data e ora, non per ordine di caricamento', () => {
+  const earlier = { id: 'early', data: '31/10', ora: '15.00', selezionati: ['x'] };
+  const later = { id: 'late', data: '2/11', ora: '20.45', selezionati: ['y'] };
+  assert.equal(getLastChronologicalMatch([later, earlier]).id, 'late');
+});
+test('Copertura: risultati precedenti filtrano le colonne e calcolano ritorno e puntata', () => {
+  const previous = { id: 'prev', esitoEffettivo: 'Esito Finale:1' };
+  const last = { id: 'last', selezionati: ['Doppia Chance:1X'], esiti: [{ market: 'Doppia Chance', outcome: '1X', label: '1X', quota: 1.1 }] };
+  const columns = [
+    { esiti: [{ eventId: 'prev', market: 'Esito Finale', outcome: '1' }, { eventId: 'last', market: 'Doppia Chance', outcome: '1X' }], quotaTotale: 10 },
+    { esiti: [{ eventId: 'prev', market: 'Esito Finale', outcome: '2' }, { eventId: 'last', market: 'Doppia Chance', outcome: '1X' }], quotaTotale: 99 }
+  ];
+  const returns = calculateLiveReturns({ columns, previousMatches: [previous, last], lastMatch: last, perColumnStake: 2, bonusForColumn: () => 0 });
+  assert.equal(returns[0].grossReturn, 20);
+  assert.equal(returns[0].winningColumns, 1);
+  assert.equal(calculateCoverStake(200, 6.5).stake, 200 / 6.5);
+});
+
+test('UI V23: pannello copertura e indicatori ultima partita sono presenti', () => {
+  assert.match(pageHtml, /id="smartCoveragePanel"/);
+  assert.match(pageJs, /renderSmartCoveragePanel/);
+  assert.match(pageJs, /odds-cover-suggested/);
+  assert.match(pageJs, /getLastChronologicalMatch/);
+});
 test('UI: Azzera quote è tra Genera sistema e Reset completo', () => {
   const generateIndex = pageHtml.indexOf('id="generate"');
   const clearIndex = pageHtml.indexOf('id="clearQuotes"');
@@ -207,9 +262,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v22-20261030/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v22-20261030/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v22-20261030/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v23-20261030/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v23-20261030/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v23-20261030/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -470,7 +525,7 @@ const backupExample = createBackupPayload({
   systemBudget: '25.00',
   sisalBonus: true,
   theme: 'dark',
-  matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', palinsesto: '36431', avvenimento: '1003', handicap: '1', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'] }],
+  matches: [{ id: 'm1', casa: 'Milan', trasferta: 'Roma', data: '23/10', ora: '20:45', palinsesto: '36431', avvenimento: '1003', handicap: '1', competizione: '', tipo: 'fissa', esiti: [{ label: '1', outcome: '1', market: '1X2', quota: 2.1 }, { label: 'X', outcome: 'X', market: '1X2', quota: 3.2 }, { label: '2', outcome: '2', market: '1X2', quota: 3.6 }], selezionati: ['1X2:1'], esitoEffettivo: '1X2:1' }],
   outcomeFilterLimits: { 'Esito finale|1': { min: '', max: '2' } },
   teamLines: ['Squadra Uno', 'Squadra Due'],
   reviewedSeason: '2026/27',
@@ -486,6 +541,7 @@ test('Backup JSON: esporta e valida impostazioni, partite e lista squadre', () =
   assert.equal(restored.matches[0].avvenimento, '1003');
   assert.equal(restored.matches[0].handicap, '1');
   assert.deepEqual(restored.matches[0].selezionati, ['1X2:1']);
+  assert.equal(restored.matches[0].esitoEffettivo, '1X2:1');
   assert.deepEqual(restored.teamLines, ['Squadra Uno', 'Squadra Due']);
   assert.equal(restored.theme, 'dark');
   assert.equal(restored.sisalBonus, true);
@@ -1036,13 +1092,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v22: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v23: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v22-20261030/);
+  assert.match(sw, /sb-v23-20261030/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);
@@ -1055,6 +1111,7 @@ test('Service worker: rete prima con timeout, rivalidazione no-cache e aggiornam
   assert.match(sw, /cache: 'no-cache'/);
   assert.match(sw, /Promise\.race\(\[settled, timeout\]\)/);
   assert.match(sw, /event\.waitUntil\(settled\)/);
+  assert.match(sw, /js\/cover-bet\.js/);
   assert.match(pageJs, /controllerchange/);
 });
 test('Esportazione e stampa: nessuna rigenerazione se selezioni, filtri e puntata sono già allineati', () => {

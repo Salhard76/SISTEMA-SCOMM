@@ -1,18 +1,21 @@
 # Sistema Scommesse Builder
 
-## v22 — 30 ottobre 2026
-- **Quote in blu:** ogni quota strettamente superiore a 3,00 è evidenziata in blu in tutti i mercati (1X2, Doppia Chance, Handicap, Over/Under, Goal/NoGoal e Segna Goal), anche quando selezionata; le quote esattamente a 3,00 restano normali.
-- **Importazione semplificata:** la schermata iniziale parte direttamente da “Importa il PDF Sisal (consigliato su Android)”. Rimossi l’area visibile di inserimento manuale e il collegamento per raggiungerla. I vecchi backup restano compatibili: il campo legacy del testo manuale viene conservato senza essere mostrato nell’interfaccia.
-- **Quote in rosso:** resta attiva la regola della v21, limitata alle coppie binarie riconosciute con entrambe le quote ≤ 2,00.
-- **Cache aggiornata:** release `sb-v22-20261030`.
+## v23 — 30 ottobre 2026 — Copertura intelligente
 
+- **Ultima partita evidenziata:** tra le partite selezionate individua quella più tarda in base a data e ora del palinsesto; la riga viene marcata con uno sfondo dedicato.
+- **Quote di controparte evidenziate:** mette in risalto solo esiti complementari riconosciuti, tra cui Doppia Chance ↔ Esito Finale, Under/Over, Goal/NoGoal e Segna Goal Casa/Ospite. Esempio: 1X ↔ 2; Segna Goal Casa SÌ ↔ NO.
+- **Risultati effettivi:** nel pannello “Copertura intelligente” l’utente indica manualmente quale esito selezionato si è verificato in ciascuna partita precedente; se entrambe le selezioni di una doppia risultano vincenti, può confermarle entrambe. Non viene simulato né dichiarato un collegamento ai risultati live.
+- **Calcolo della copertura:** dopo la generazione del sistema, le colonne vengono filtrate in base agli esiti effettivi registrati. Per ogni controparte esatta viene calcolata la puntata che pareggia il ritorno lordo dei due scenari (`ritorno da proteggere / quota di copertura`), includendo la stima del Bonus Multipla attivo.
+- **Trasparenza sui limiti:** se sono stati selezionati due mercati diversi nell’ultima partita, ogni proposta copre il relativo ramo e non viene presentata come copertura totale automatica. La copertura è facoltativa e non garantisce un risultato positivo.
+- **Persistenza:** gli esiti effettivi confermati vengono conservati nei salvataggi locali e nei backup JSON; cambiare le selezioni azzera la conferma relativa a quella partita.
+- **Test e cache:** test aggiunti per complementi esatti, ordinamento cronologico, risultati precedenti, ritorno residuo e puntata suggerita. Release `sb-v23-20261030`.
 
 ## Novità versione 20 — controllo copertura minima e quote a rischio doppia
 - **Azzera quote azzera anche i filtri dinamici** (per esempio Min/Max su X, Over o Goal). Conserva le partite, le quote importate, il testo manuale e le impostazioni di puntata. Se non ci sono selezioni ma restano filtri impostati, il pulsante resta disponibile per cancellarli.
 - **Quote in rosso**: vengono evidenziati soltanto i mercati a due esiti riconosciuti (Under/Over 1,5, 2,5 e 3,5; Goal/NoGoal; Segna Goal Casa/Ospite) quando entrambe le quote sono pari o inferiori a 2,00. Non vengono marcati i mercati a tre esiti (1X2, Handicap, Doppia Chance), i mercati incompleti/duplicati o le coppie in cui almeno una quota supera 2,00. Il controllo è visivo e non blocca la selezione.
 - **Controllo automatico ritorno/spesa**: si aggiorna quando cambiano quote selezionate, filtri, modalità di puntata, importi o Bonus Multipla. Moltiplica la quota composta di ogni colonna per la puntata effettiva e aggiunge il bonus stimato secondo la regola interna; confronta il ritorno lordo minimo tra le colonne rimaste con la spesa totale effettiva. Verde significa che il ritorno teorico minimo di una colonna vincente è almeno pari alla spesa; rosso indica il contrario.
 - **Nessuna promessa di vincita**: il controllo non prevede che una colonna vinca e non conta l'eventuale vincita contemporanea di più colonne; segnala soltanto la copertura matematica del ritorno minimo calcolato alle quote correnti. Il bonus Sisal è una stima da verificare sul biglietto effettivo.
-- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v22-20261030`.
+- **Test**: la suite verifica le coppie a quota bassa, il moltiplicatore, il bonus, i filtri e lo stato dell'interfaccia.
 
 ## Novità versione 19 — azzera selezioni senza perdere le quote importate
 - **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.

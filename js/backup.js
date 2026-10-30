@@ -1,5 +1,5 @@
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v22-20261030';
-import { normalizeMatchList } from './selection.js?v=sb-v22-20261030';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH } from './config.js?v=sb-v23-20261030';
+import { normalizeMatchList } from './selection.js?v=sb-v23-20261030';
 
 export const BACKUP_FORMAT = 'sistema-scommesse-builder-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -49,13 +49,15 @@ export function validateBackupPayload(payload) {
     if (selezionati.some(key => !available.has(key))) throw new Error(`Partita ${index + 1}: una selezione non corrisponde a una quota presente.`);
     const tipo = match.tipo === 'doppia' ? 'doppia' : 'fissa';
     if (tipo === 'fissa' && selezionati.length > 1) throw new Error(`Partita ${index + 1}: una fissa può contenere una sola selezione.`);
+    const actual = asText(match.esitoEffettivo).trim();
+    const esitoEffettivo = actual === '__lost__' || (actual === '__both__' && selezionati.length === 2) || (actual && selezionati.includes(actual)) ? actual : '';
     return {
       id: asText(match.id, `backup-match-${index + 1}`).trim() || `backup-match-${index + 1}`,
       casa, trasferta,
       data: asText(match.data), ora: asText(match.ora),
       palinsesto: asText(match.palinsesto || match.pal), avvenimento: asText(match.avvenimento || match.avv),
       handicap: asText(match.handicap), competizione: asText(match.competizione),
-      tipo, esiti, selezionati
+      tipo, esiti, selezionati, esitoEffettivo
     };
   });
 
