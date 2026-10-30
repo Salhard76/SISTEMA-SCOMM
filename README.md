@@ -1,5 +1,17 @@
 # Sistema Scommesse Builder
 
+## v25 — 30 ottobre 2026 — Puntata ottimizzata al centesimo
+- **Copertura più precisa**: per ogni quota candidata vengono confrontati il centesimo inferiore e quello superiore rispetto alla puntata teorica di pareggio. Viene scelta la puntata che massimizza davvero il caso peggiore dopo l'arrotondamento monetario.
+- **Test**: aggiunta una regressione in cui il centesimo superiore migliora il risultato rispetto al normale arrotondamento; 95 test complessivi. Release `sb-v25-20261030`.
+
+## v24 — 30 ottobre 2026 — Copertura consigliata sul risultato netto
+- **Copertura consigliata**: per ogni possibile risultato finale dell'ultima partita il pannello calcola il netto = ritorno del sistema − spesa del sistema − puntata di copertura (+ vincita della copertura se comprende quel risultato) e sceglie, tra le quote disponibili della stessa famiglia (1X2 + Doppia Chance, oppure un mercato binario), la puntata che massimizza il **caso peggiore**. Mostra la puntata, il netto per ogni risultato con e senza copertura e le due migliori alternative.
+- **Due esiti nell'ultima partita**: la versione 23 proponeva una copertura per ogni ramo (nell'esempio di prova 30,86 € + 47,62 € per ottenere +7,36 € in ogni scenario, oppure −5,50 € nel caso peggiore con un solo ramo). La copertura sull'esito rimanente costa 15,12 € e garantisce +10,24 € nel caso peggiore (stesso esempio, verificata a forza bruta su tutte le quote e puntate da 0 a 200 €). Le schede per ramo restano, ripiegate, come alternativa.
+- **Netto reale nelle schede per ramo**: oltre al «ritorno bilanciato» (prima della spesa del sistema) compare il risultato netto dopo la spesa del sistema; se su un ramo non c'è nessuna colonna viva la scheda dice «Non necessaria» invece di «In attesa».
+- **Controparti anche con quote scritte a mano** (Over 2.5/Under 2.5, Goal/NoGoal): prima non ne veniva trovata nessuna perché i nomi di mercato differiscono da quelli del PDF. Nell'interfaccia attuale l'inserimento manuale non c'è più; vale per sessioni salvate e backup.
+- **Limiti**: la copertura è facoltativa, non garantisce un risultato positivo (il caso peggiore può restare negativo), non considera limiti o puntate minime del bookmaker; la puntata è arrotondata al centesimo; se nell'ultima partita ci sono esiti di mercati diversi viene mostrato solo il calcolo per ramo. Il bonus Sisal è una stima.
+- **Test**: 5 nuovi (94 in tutto), compresa la verifica a forza bruta. Release `sb-v25-20261030`.
+
 ## v23 — 30 ottobre 2026 — Copertura intelligente
 
 - **Ultima partita evidenziata:** tra le partite selezionate individua quella più tarda in base a data e ora del palinsesto; la riga viene marcata con uno sfondo dedicato.
@@ -8,7 +20,7 @@
 - **Calcolo della copertura:** dopo la generazione del sistema, le colonne vengono filtrate in base agli esiti effettivi registrati. Per ogni controparte esatta viene calcolata la puntata che pareggia il ritorno lordo dei due scenari (`ritorno da proteggere / quota di copertura`), includendo la stima del Bonus Multipla attivo.
 - **Trasparenza sui limiti:** se sono stati selezionati due mercati diversi nell’ultima partita, ogni proposta copre il relativo ramo e non viene presentata come copertura totale automatica. La copertura è facoltativa e non garantisce un risultato positivo.
 - **Persistenza:** gli esiti effettivi confermati vengono conservati nei salvataggi locali e nei backup JSON; cambiare le selezioni azzera la conferma relativa a quella partita.
-- **Test e cache:** test aggiunti per complementi esatti, ordinamento cronologico, risultati precedenti, ritorno residuo e puntata suggerita. Release `sb-v23-20261030`.
+- **Test e cache:** test aggiunti per complementi esatti, ordinamento cronologico, risultati precedenti, ritorno residuo e puntata suggerita. Release `sb-v25-20261030`.
 
 ## Novità versione 20 — controllo copertura minima e quote a rischio doppia
 - **Azzera quote azzera anche i filtri dinamici** (per esempio Min/Max su X, Over o Goal). Conserva le partite, le quote importate, il testo manuale e le impostazioni di puntata. Se non ci sono selezioni ma restano filtri impostati, il pulsante resta disponibile per cancellarli.

@@ -1,16 +1,16 @@
-import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v23-20261030';
-import { generateSystem } from './js/generator.js?v=sb-v23-20261030';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v23-20261030';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v23-20261030';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v23-20261030';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v23-20261030';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v23-20261030';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v23-20261030';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v23-20261030';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v23-20261030';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v23-20261030';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v23-20261030';
-import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake } from './js/cover-bet.js?v=sb-v23-20261030';
+import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v25-20261030';
+import { generateSystem } from './js/generator.js?v=sb-v25-20261030';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v25-20261030';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v25-20261030';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v25-20261030';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v25-20261030';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v25-20261030';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v25-20261030';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v25-20261030';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v25-20261030';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v25-20261030';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v25-20261030';
+import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, coverResultLabel } from './js/cover-bet.js?v=sb-v25-20261030';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -474,7 +474,17 @@ function getSmartCoverageContext() {
   const allPreviousKnown = previousMatches.length > 0
     && previousMatches.every(match => Boolean(match.esitoEffettivo));
   const anyPreviousLost = previousMatches.some(match => match.esitoEffettivo === '__lost__');
-  return { lastMatch, previousMatches, candidates: uniqueCandidates, allocation, returns, allPreviousKnown, anyPreviousLost };
+  const best = state.lastGenerated && allocation?.valid && previousMatches.length && allPreviousKnown && !anyPreviousLost
+    ? calculateBestSingleCover({
+      columns: state.finalColumns,
+      previousMatches,
+      lastMatch,
+      perColumnStake: allocation.perColumn,
+      totalSpend: allocation.total,
+      bonusForColumn: column => estimateBonusFraction(column, $('sisalBonus')?.checked !== false)
+    })
+    : null;
+  return { lastMatch, previousMatches, candidates: uniqueCandidates, allocation, returns, allPreviousKnown, anyPreviousLost, best };
 }
 
 function renderSmartCoveragePanel() {
@@ -486,7 +496,8 @@ function renderSmartCoveragePanel() {
     root.innerHTML = '';
     return;
   }
-  const { lastMatch, previousMatches, candidates, returns, allocation, allPreviousKnown, anyPreviousLost } = context;
+  const { lastMatch, previousMatches, candidates, returns, allocation, allPreviousKnown, anyPreviousLost, best } = context;
+  const signedEuro = value => `${value > 0.004 ? '+' : ''}${formatEuro(value)}`;
   root.hidden = false;
   const statusRows = previousMatches.map(match => {
     const selected = (match.selezionati || []).map(key => match.esiti?.find(item => `${item.market}:${item.outcome}` === key)).filter(Boolean);
@@ -503,16 +514,36 @@ function renderSmartCoveragePanel() {
     const target = actualReturn?.grossReturn ?? 0;
     const stake = calculateCoverStake(target, candidate.outcome.quota);
     const coverClass = stake ? 'coverage-candidate-ready' : 'coverage-candidate-pending';
-    const amount = stake ? `<strong>${formatEuro(stake.stake)}</strong>` : '<strong>In attesa</strong>';
+    const noLiveColumns = Boolean(actualReturn) && actualReturn.grossReturn <= 0;
+    const amount = stake ? `<strong>${formatEuro(stake.stake)}</strong>` : `<strong>${noLiveColumns ? 'Non necessaria' : 'In attesa'}</strong>`;
+    const netAfter = stake && allocation?.valid ? stake.balancedGrossAfterCoverStake - allocation.total : null;
     const detail = stake
-      ? `Ritorno da proteggere ${formatEuro(target)} · Ritorno copertura ${formatEuro(stake.coverGrossReturn)} · Ritorno bilanciato dopo la puntata di copertura ${formatEuro(stake.balancedGrossAfterCoverStake)} (prima della spesa del sistema)`
-      : 'Genera il sistema e registra i risultati precedenti per calcolare la puntata';
+      ? `Ritorno da proteggere ${formatEuro(target)} · Ritorno copertura ${formatEuro(stake.coverGrossReturn)} · Ritorno bilanciato dopo la puntata di copertura ${formatEuro(stake.balancedGrossAfterCoverStake)} (prima della spesa del sistema)${netAfter === null ? '' : ` · Risultato netto dopo la spesa del sistema (${formatEuro(allocation.total)}): ${signedEuro(netAfter)}`}`
+      : noLiveColumns ? 'Nessuna colonna ancora viva su questo esito: non c’è nulla da proteggere su questo ramo.' : 'Genera il sistema e registra i risultati precedenti per calcolare la puntata';
     return `<article class="coverage-candidate ${coverClass}">
       <div class="coverage-candidate-main"><span class="coverage-candidate-market">${escapeHtml(candidate.outcome.market)}</span><strong>${escapeHtml(candidate.outcome.label)}</strong><small>Controparte di ${escapeHtml(candidate.selected.label)} · quota ${escapeHtml(formatQuota(candidate.outcome.quota))}</small></div>
       <div class="coverage-candidate-stake"><span>Puntata suggerita</span>${amount}</div>
       <p>${escapeHtml(detail)}</p>
     </article>`;
   }).join('');
+
+  const bestBlock = (() => {
+    if (!best) return '';
+    const family = best.family;
+    if (!best.best) {
+      return `<p class="help">Nessuna quota disponibile migliora il caso peggiore: con questi risultati non conviene coprire (caso peggiore senza copertura ${escapeHtml(signedEuro(best.worstWithout))}).</p>`;
+    }
+    const pick = best.best;
+    const scenarioRows = best.results.map(result => `<li><span>Se finisce ${escapeHtml(coverResultLabel(family, result))}</span><strong>${escapeHtml(signedEuro(pick.nets[result]))}</strong><small>senza copertura ${escapeHtml(signedEuro(best.without[result]))}</small></li>`).join('');
+    const alternatives = best.alternatives.length
+      ? `<p class="coverage-alt">Alternative: ${best.alternatives.map(item => `${escapeHtml(item.outcome.label)} @ ${escapeHtml(formatQuota(item.odds))} con ${escapeHtml(formatEuro(item.stake))} (caso peggiore ${escapeHtml(signedEuro(item.worst))})`).join(' · ')}</p>` : '';
+    return `<article class="coverage-candidate coverage-candidate-ready coverage-best">
+      <div class="coverage-candidate-main"><span class="coverage-candidate-market">COPERTURA CONSIGLIATA · ${escapeHtml(pick.outcome.market)}</span><strong>${escapeHtml(pick.outcome.label)}</strong><small>quota ${escapeHtml(formatQuota(pick.odds))} · comprende ${escapeHtml(pick.covers.map(result => coverResultLabel(family, result)).join(' + '))}</small></div>
+      <div class="coverage-candidate-stake"><span>Puntata suggerita</span><strong>${escapeHtml(formatEuro(pick.stake))}</strong></div>
+      <ul class="coverage-scenarios">${scenarioRows}</ul>
+      <p>Caso peggiore: <strong>${escapeHtml(signedEuro(pick.worst))}</strong> con la copertura, contro ${escapeHtml(signedEuro(best.worstWithout))} senza. I risultati sono già al netto della spesa del sistema (${escapeHtml(formatEuro(best.spend))}) e della puntata di copertura; il bonus Sisal è una stima.</p>${alternatives}
+    </article>`;
+  })();
 
   let message = '';
   if (!previousMatches.length) {
@@ -535,7 +566,8 @@ function renderSmartCoveragePanel() {
     <p class="smart-coverage-fixture"><strong>${escapeHtml(lastMatch.casa)} – ${escapeHtml(lastMatch.trasferta)}</strong><span>${escapeHtml([lastMatch.data, lastMatch.ora].filter(Boolean).join(' · '))}</span></p>
     ${previousMatches.length ? `<div class="coverage-results"><strong>Conferma i risultati effettivi delle partite precedenti</strong>${statusRows}</div>` : ''}
     <p class="smart-coverage-status" role="status">${escapeHtml(message)}</p>
-    ${candidates.length ? `<div class="coverage-candidates"><strong>Quote di controparte disponibili</strong>${candidateRows}</div>` : '<p class="help">Non è stata trovata una controparte esatta tra le quote importate per gli esiti selezionati nell’ultima partita.</p>'}
+    ${bestBlock ? `<div class="coverage-candidates">${bestBlock}</div>` : ''}
+    ${candidates.length ? `<div class="coverage-candidates">${bestBlock ? '<details class="coverage-branches"><summary>Coperture per singolo ramo (alternativa)</summary>' : '<strong>Quote di controparte disponibili</strong>'}${candidateRows}${bestBlock ? '</details>' : ''}</div>` : '<p class="help">Non è stata trovata una controparte esatta tra le quote importate per gli esiti selezionati nell’ultima partita.</p>'}
     <p class="smart-coverage-note">${escapeHtml(note)}</p>`;
 }
 
@@ -1376,7 +1408,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v23-20261030');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v25-20261030');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

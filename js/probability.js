@@ -1,5 +1,5 @@
 /* Probabilità stimate "senza aggio" e mutua esclusività delle colonne. */
-import { selectionMarketKey } from './selection.js?v=sb-v23-20261030';
+import { selectionMarketKey } from './selection.js?v=sb-v25-20261030';
 
 // Numero di esiti che formano una partizione completa del mercato (le probabilità sommano a 1,
 // tranne la Doppia Chance dove sommano a 2).
