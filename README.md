@@ -1,11 +1,15 @@
 # Sistema Scommesse Builder
 
+## v21 — 30 ottobre 2026
+- Evidenziazione rossa limitata ai mercati binari riconosciuti: Under/Over, Goal/NoGoal e Segna Goal Casa/Ospite, esclusivamente quando entrambe le quote sono ≤ 2,00. Nessuna evidenziazione per mercati a tre esiti, mercati incompleti o coppie miste sotto/sopra 2,00.
+
+
 ## Novità versione 20 — controllo copertura minima e quote a rischio doppia
 - **Azzera quote azzera anche i filtri dinamici** (per esempio Min/Max su X, Over o Goal). Conserva le partite, le quote importate, il testo manuale e le impostazioni di puntata. Se non ci sono selezioni ma restano filtri impostati, il pulsante resta disponibile per cancellarli.
-- **Quote in rosso**: una quota inferiore a 2,00 è evidenziata quando nella stessa partita è presente almeno un'altra quota inferiore a 2,00. Selezionare due quote rosse per la stessa doppia non rispetta il criterio adottato per COMPENSAZIONE. Il controllo è visivo e non blocca la selezione.
+- **Quote in rosso**: vengono evidenziati soltanto i mercati a due esiti riconosciuti (Under/Over 1,5, 2,5 e 3,5; Goal/NoGoal; Segna Goal Casa/Ospite) quando entrambe le quote sono pari o inferiori a 2,00. Non vengono marcati i mercati a tre esiti (1X2, Handicap, Doppia Chance), i mercati incompleti/duplicati o le coppie in cui almeno una quota supera 2,00. Il controllo è visivo e non blocca la selezione.
 - **Controllo automatico ritorno/spesa**: si aggiorna quando cambiano quote selezionate, filtri, modalità di puntata, importi o Bonus Multipla. Moltiplica la quota composta di ogni colonna per la puntata effettiva e aggiunge il bonus stimato secondo la regola interna; confronta il ritorno lordo minimo tra le colonne rimaste con la spesa totale effettiva. Verde significa che il ritorno teorico minimo di una colonna vincente è almeno pari alla spesa; rosso indica il contrario.
 - **Nessuna promessa di vincita**: il controllo non prevede che una colonna vinca e non conta l'eventuale vincita contemporanea di più colonne; segnala soltanto la copertura matematica del ritorno minimo calcolato alle quote correnti. Il bonus Sisal è una stima da verificare sul biglietto effettivo.
-- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v20-20261029`.
+- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v21-20261030`.
 
 ## Novità versione 19 — azzera selezioni senza perdere le quote importate
 - **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.

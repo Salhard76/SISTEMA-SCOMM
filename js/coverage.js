@@ -1,18 +1,39 @@
 /** Controlli economici preliminari condivisi dal foglio quote e dal sistema generato. */
 
 /**
- * Evidenzia una quota sotto 2.00 quando nella stessa partita esiste almeno
- * un'altra quota giocabile, distinta, anch'essa sotto 2.00. In questo modo
- * entrambe le quote di una potenziale doppia che non rispetta il criterio
- * COMPENSAZIONE vengono evidenziate in rosso.
+ * Restituisce la chiave del mercato binario supportato dal controllo visivo.
+ * I mercati a tre esiti (1X2, Handicap, Doppia Chance) e quelli non riconosciuti
+ * non vengono mai considerati coppie Under/Over o Goal/NoGoal.
+ */
+function binaryMarketKey(outcome) {
+  const market = String(outcome?.market ?? '').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('it-IT')
+    .replace(/\s+/g, ' ').trim();
+  const total = market.match(/^(?:under\s*\/\s*over|under|over)\s*(1[.,]5|2[.,]5|3[.,]5)$/);
+  if (total) return `under-over-${total[1].replace(',', '.')}`;
+  if (['goal/nogoal', 'goal/no goal', 'goal', 'nogoal', 'no goal'].includes(market)) return 'goal-nogoal';
+  if (market === 'segna goal casa') return 'segna-goal-casa';
+  if (market === 'segna goal ospite') return 'segna-goal-ospite';
+  return null;
+}
+
+/**
+ * Evidenzia entrambe le quote solo se appartengono a un mercato binario
+ * riconosciuto (Under/Over, Goal/NoGoal, Segna Goal Casa/Ospite), il mercato
+ * contiene esattamente due esiti distinti e tutte e due le quote sono <= 2.00.
+ * Non dipende dalle selezioni attive: segnala la coppia importata nel foglio.
  */
 export function hasUnprofitableDoublePartner(outcome, outcomes, threshold = 2) {
-  const odd = Number(outcome?.quota);
-  if (!Number.isFinite(odd) || odd <= 1 || odd >= threshold) return false;
-  return (Array.isArray(outcomes) ? outcomes : []).some(other => {
-    if (!other || other === outcome) return false;
-    const otherOdd = Number(other.quota);
-    return Number.isFinite(otherOdd) && otherOdd > 1 && otherOdd < threshold;
+  const marketKey = binaryMarketKey(outcome);
+  if (!marketKey) return false;
+  const marketOutcomes = (Array.isArray(outcomes) ? outcomes : [])
+    .filter(item => item && binaryMarketKey(item) === marketKey);
+  if (marketOutcomes.length !== 2) return false;
+  const distinctOutcomes = new Set(marketOutcomes.map(item => String(item.outcome ?? item.label ?? '').trim().toLocaleLowerCase('it-IT')));
+  if (distinctOutcomes.size !== 2 || !marketOutcomes.includes(outcome)) return false;
+  return marketOutcomes.every(item => {
+    const odd = Number(item.quota);
+    return Number.isFinite(odd) && odd > 1 && odd <= threshold;
   });
 }
 

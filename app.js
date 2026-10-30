@@ -1,15 +1,15 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v20-20261029';
-import { generateSystem } from './js/generator.js?v=sb-v20-20261029';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v20-20261029';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v20-20261029';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v20-20261029';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v20-20261029';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v20-20261029';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v20-20261029';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v20-20261029';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v20-20261029';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v20-20261029';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from './js/coverage.js?v=sb-v20-20261029';
+import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v21-20261030';
+import { generateSystem } from './js/generator.js?v=sb-v21-20261030';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v21-20261030';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v21-20261030';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v21-20261030';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v21-20261030';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v21-20261030';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v21-20261030';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v21-20261030';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v21-20261030';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v21-20261030';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from './js/coverage.js?v=sb-v21-20261030';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -481,8 +481,8 @@ function renderMatches() {
       const lowDoubleRisk = hasUnprofitableDoublePartner(outcome, match.esiti);
       const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : ''].filter(Boolean).join(' ');
       const selectionLabel = match.selezionati?.length === 2 ? 'Doppia automatica' : 'Fissa automatica';
-      const riskNotice = lowDoubleRisk ? ' · Attenzione: quota sotto 2,00 con almeno un’altra quota sotto 2,00 nella stessa partita' : '';
-      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', attenzione: questa quota è sotto 2 e nella partita ne esiste almeno un’altra sotto 2' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
+      const riskNotice = lowDoubleRisk ? ' · Coppia di mercato a due esiti: entrambe le quote sono pari o inferiori a 2,00' : '';
+      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', coppia binaria con entrambe le quote pari o inferiori a 2' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
     const metaTitle = [match.data, match.ora, match.palinsesto || match.pal, match.avvenimento || match.avv].filter(Boolean).join(' · ');
@@ -498,7 +498,7 @@ function renderMatches() {
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
     <th class="quote-team quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-team quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}<th class="quote-fixed-head quote-meta-col quote-meta-head quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Avv.</th>
-    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati. Le quote in rosso sono inferiori a 2,00 e hanno almeno un’altra quota inferiore a 2,00 nella stessa partita: selezionarle entrambe non rispetta il criterio COMPENSAZIONE.</p>`;
+    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati. Le quote in rosso appartengono a mercati a due esiti (Under/Over, Goal/NoGoal o Segna Goal) in cui entrambe le quote sono pari o inferiori a 2,00. I mercati a tre esiti e le coppie con almeno una quota superiore a 2,00 non vengono evidenziati.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
   if (focused) {
@@ -1281,7 +1281,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v20-20261029');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v21-20261030');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

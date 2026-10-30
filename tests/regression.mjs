@@ -55,19 +55,66 @@ test('Azzera quote: rimuove soltanto le selezioni e mantiene partite, quote e me
   assert.equal(cleared[0].pal, '36441');
   assert.deepEqual(source.selezionati, ['1X2:1', 'Under/Over 2.5:Over 2.5'], 'la funzione non deve mutare l’oggetto sorgente');
 });
-test('COMPENSAZIONE: quote sotto 2 vengono marcate quando hanno una seconda quota sotto 2 nella stessa partita', () => {
-  const pair = [{ quota: 1.80 }, { quota: 1.90 }, { quota: 2.10 }, { quota: 2.00 }];
-  assert.equal(hasUnprofitableDoublePartner(pair[0], pair), true);
-  assert.equal(hasUnprofitableDoublePartner(pair[1], pair), true);
-  assert.equal(hasUnprofitableDoublePartner(pair[2], pair), false, 'una quota maggiore di 2 non viene marcata');
-  assert.equal(hasUnprofitableDoublePartner(pair[3], pair), false, 'la soglia è strettamente inferiore a 2');
-  const loneLow = { quota: 1.80 };
-  assert.equal(hasUnprofitableDoublePartner(loneLow, [loneLow, { quota: 2.10 }]), false, 'non c’è una seconda quota sotto 2');
+test('Evidenziazione rossa: solo coppie di mercati binari con entrambe le quote <= 2,00', () => {
+  const totals = [
+    { market: 'Under/Over 2.5', outcome: 'U 2.5', quota: 1.80 },
+    { market: 'Under/Over 2.5', outcome: 'O 2.5', quota: 1.90 }
+  ];
+  assert.equal(hasUnprofitableDoublePartner(totals[0], totals), true, 'Under 1,80 e Over 1,90: entrambe rosse');
+  assert.equal(hasUnprofitableDoublePartner(totals[1], totals), true);
+
+  const goal = [
+    { market: 'Goal/NoGoal', outcome: 'Goal', quota: 1.75 },
+    { market: 'Goal/NoGoal', outcome: 'NoGoal', quota: 1.95 }
+  ];
+  assert.equal(hasUnprofitableDoublePartner(goal[0], goal), true, 'Goal 1,75 e NoGoal 1,95: entrambe rosse');
+  assert.equal(hasUnprofitableDoublePartner(goal[1], goal), true);
+
+  const mixed = [
+    { market: 'Under/Over 2.5', outcome: 'U 2.5', quota: 1.80 },
+    { market: 'Under/Over 2.5', outcome: 'O 2.5', quota: 2.10 }
+  ];
+  assert.equal(hasUnprofitableDoublePartner(mixed[0], mixed), false, 'una quota sotto 2 e una sopra 2: nessun rosso');
+  assert.equal(hasUnprofitableDoublePartner(mixed[1], mixed), false);
+
+  const triple = [
+    { market: '1X2', outcome: '1', quota: 1.80 },
+    { market: '1X2', outcome: 'X', quota: 1.90 },
+    { market: '1X2', outcome: '2', quota: 2.10 }
+  ];
+  assert.equal(triple.some(item => hasUnprofitableDoublePartner(item, triple)), false, 'un mercato a tre esiti non viene mai marcato');
+  const doubleChance = [
+    { market: 'Doppia Chance', outcome: '1X', quota: 1.40 },
+    { market: 'Doppia Chance', outcome: 'X2', quota: 1.80 },
+    { market: 'Doppia Chance', outcome: '12', quota: 1.50 }
+  ];
+  assert.equal(doubleChance.some(item => hasUnprofitableDoublePartner(item, doubleChance)), false, 'la Doppia Chance è un mercato a tre esiti');
+
+  const differentMarkets = [
+    { market: 'Under/Over 2.5', outcome: 'U 2.5', quota: 1.80 },
+    { market: 'Goal/NoGoal', outcome: 'Goal', quota: 1.90 }
+  ];
+  assert.equal(differentMarkets.some(item => hasUnprofitableDoublePartner(item, differentMarkets)), false, 'quote di mercati diversi non formano una coppia');
+
+  const boundary = [
+    { market: 'Under/Over 1.5', outcome: 'U 1.5', quota: 2.00 },
+    { market: 'Under/Over 1.5', outcome: 'O 1.5', quota: 1.99 }
+  ];
+  assert.equal(hasUnprofitableDoublePartner(boundary[0], boundary), true, 'la soglia 2,00 è inclusa');
+  assert.equal(hasUnprofitableDoublePartner(boundary[1], boundary), true);
+
+  const incomplete = [{ market: 'Goal/NoGoal', outcome: 'Goal', quota: 1.75 }];
+  assert.equal(hasUnprofitableDoublePartner(incomplete[0], incomplete), false, 'un mercato binario incompleto non viene marcato');
+
   assert.match(pageJs, /hasUnprofitableDoublePartner\(outcome, match\.esiti\)/);
   assert.match(pageJs, /odds-low-double-risk/);
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /\.odds-cell\.odds-low-double-risk\{color:#b4232d!important/);
-  assert.match(pageJs, /Le quote in rosso sono inferiori a 2,00/);
+  assert.match(css, /\.odds-cell\.odds-low-double-risk\.is-fixed\{color:#b4232d!important/, 'anche una quota evidenziata che viene selezionata mantiene il carattere rosso');
+  assert.match(pageJs, /mercati a due esiti \(Under\/Over, Goal\/NoGoal o Segna Goal\)/);
+  const coverageSource = readFileSync(new URL('../js/coverage.js', import.meta.url), 'utf8');
+  assert.match(coverageSource, /marketOutcomes\.length !== 2/);
+  assert.match(coverageSource, /odd <= threshold/);
 });
 
 test('Controllo copertura: moltiplicatore, spesa totale e bonus Sisal stimato', () => {
@@ -134,9 +181,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v20-20261029/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v20-20261029/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v20-20261029/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v21-20261030/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v21-20261030/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v21-20261030/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -963,13 +1010,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v20: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v21: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v20-20261029/);
+  assert.match(sw, /sb-v21-20261030/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);
