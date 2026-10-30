@@ -6,7 +6,7 @@ import { applyFilters, classifyColumns, describeOutcome, maxOutcomeCount, collec
 import { printWithMode, buildCsv, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from '../js/exporter.js';
 import { fairProbabilities, isExclusiveSystem } from '../js/probability.js';
 import { summarizeColumnRange } from '../js/calculator.js';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from '../js/coverage.js';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from '../js/coverage.js';
 import { calculateStakeAllocation, formatEuroPrecise } from '../js/stake.js';
 import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
@@ -111,7 +111,7 @@ test('Evidenziazione rossa: solo coppie di mercati binari con entrambe le quote 
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /\.odds-cell\.odds-low-double-risk\{color:#b4232d!important/);
   assert.match(css, /\.odds-cell\.odds-low-double-risk\.is-fixed\{color:#b4232d!important/, 'anche una quota evidenziata che viene selezionata mantiene il carattere rosso');
-  assert.match(pageJs, /mercati a due esiti \(Under\/Over, Goal\/NoGoal o Segna Goal\)/);
+  assert.match(pageJs, /mercati binari riconosciuti in cui entrambe le quote sono pari o inferiori a 2,00/);
   const coverageSource = readFileSync(new URL('../js/coverage.js', import.meta.url), 'utf8');
   assert.match(coverageSource, /marketOutcomes\.length !== 2/);
   assert.match(coverageSource, /odd <= threshold/);
@@ -141,11 +141,37 @@ test('Controllo copertura: moltiplicatore, spesa totale e bonus Sisal stimato', 
   assert.match(pageJs, /non una garanzia che una colonna vinca/);
 });
 
-test('Testo manuale: salvataggio automatico e confini di reset/import senza timer obsoleti', () => {
-  assert.match(pageJs, /\$\('manualInput'\)\.addEventListener\('input',[\s\S]*?setTimeout\(saveState, 250\)/);
-  assert.match(pageJs, /function applyBackup\(data\) \{[\s\S]*?clearTimeout\(manualInputSaveTimeout\)/);
-  assert.match(pageJs, /\$\('reset'\)\.addEventListener\('click',[\s\S]*?clearTimeout\(manualInputSaveTimeout\)/);
+test('UI: importazione parte direttamente dal PDF Sisal; inserimento manuale rimosso', () => {
+  const pdfTitle = pageHtml.indexOf('Importa il PDF Sisal (consigliato su Android)');
+  const pdfPanel = pageHtml.indexOf('id="pdfPanel"');
+  const teamManager = pageHtml.indexOf('id="openTeamManager"');
+  assert.ok(pdfTitle >= 0 && pdfPanel > 0 && teamManager > pdfPanel, 'il pannello PDF è il primo metodo di caricamento');
+  assert.match(pageHtml, /<h2 id="pdf-title">Importa il PDF Sisal \(consigliato su Android\)<\/h2>/);
+  assert.doesNotMatch(pageHtml, /id="manualPanel"|id="parseManual"|id="clearInput"|Incolla le quote manualmente|href="#manualPanel"/);
+  assert.match(pageHtml, /<textarea id="manualInput" hidden aria-hidden="true" tabindex="-1"><\/textarea>/, 'campo legacy nascosto per compatibilità con vecchi backup');
+  assert.doesNotMatch(pageJs, /parseManualInput|parseManual|clearInput/);
+  assert.match(pageJs, /manualInput: \$\('manualInput'\)\?\.value \|\| ''/);
   assert.match(pageJs, /\$\('clearQuotes'\)\.addEventListener\('click',[\s\S]*?clearTimeout\(filterUpdateTimeout\)/);
+});
+
+test('Quote superiori a 3,00: evidenziazione blu strettamente maggiore di 3', () => {
+  assert.equal(isHighQuote({ quota: 3.01 }), true);
+  assert.equal(isHighQuote({ quota: 3 }), false, '3,00 esatto non è blu');
+  assert.equal(isHighQuote({ quota: '3.50' }), true);
+  assert.equal(isHighQuote({ quota: '3,50', market: '1X2', outcome: 'X' }), true, 'si applica anche a 1X2 e valori con virgola');
+  assert.equal(isHighQuote({ quota: 3.25, market: 'Doppia Chance', outcome: 'X2' }), true, 'si applica anche alla Doppia Chance');
+  assert.equal(isHighQuote({ quota: 3.10, market: 'Handicap', outcome: 'H2' }), true, 'si applica anche all’handicap');
+  assert.equal(isHighQuote({ quota: 2.99 }), false);
+  assert.equal(isHighQuote({ quota: 'non valida' }), false);
+  assert.equal(isHighQuote(null), false);
+  assert.match(pageJs, /const highQuote = isHighQuote\(outcome\)/);
+  assert.match(pageJs, /highQuote \? 'odds-high-quote' : ''/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.odds-cell\.odds-high-quote\{color:#1558b5!important\}/);
+  assert.match(css, /:root\[data-theme="dark"\] \.odds-cell\.odds-high-quote\{color:#88baff!important\}/);
+  assert.match(css, /\.odds-cell\.odds-high-quote\.is-fixed\{color:#f4f8ff!important\}/, 'le quote blu restano leggibili sulle fisse selezionate');
+  assert.match(css, /\.odds-cell\.odds-high-quote\.is-double\{color:#174b8d!important\}/, 'le quote blu restano leggibili sulle doppie selezionate');
+  assert.match(css, /:root\[data-theme="dark"\] \.odds-cell\.odds-high-quote\.is-fixed\{color:#00356b!important\}/);
 });
 test('Le modifiche alle partite invalidano la tabella precedente e le esportazioni', () => {
   assert.match(pageJs, /function invalidateGeneratedSystem\([\s\S]*?state\.rawColumns = \[\][\s\S]*?state\.finalColumns = \[\][\s\S]*?state\.lastGenerated = false/);
@@ -181,9 +207,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v21-20261030/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v21-20261030/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v21-20261030/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v22-20261030/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v22-20261030/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v22-20261030/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -1010,13 +1036,13 @@ test('Parser PDF: un bollettino con 12 partite le restituisce tutte (nessun tagl
   const matches = await parseSisalPdf(new ArrayBuffer(0));
   assert.equal(matches.length, 12);
 });
-test('Release v21: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
+test('Release v22: versione ?v= unica in tutti i file e PDF.js incluso in vendor', () => {
   const versions = new Set();
   const files = ['../index.html', '../app.js', '../manifest.webmanifest', ...readdirSync(new URL('../js/', import.meta.url)).map(f => `../js/${f}`)];
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v21-20261030/);
+  assert.match(sw, /sb-v22-20261030/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

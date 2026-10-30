@@ -1,7 +1,10 @@
 # Sistema Scommesse Builder
 
-## v21 — 30 ottobre 2026
-- Evidenziazione rossa limitata ai mercati binari riconosciuti: Under/Over, Goal/NoGoal e Segna Goal Casa/Ospite, esclusivamente quando entrambe le quote sono ≤ 2,00. Nessuna evidenziazione per mercati a tre esiti, mercati incompleti o coppie miste sotto/sopra 2,00.
+## v22 — 30 ottobre 2026
+- **Quote in blu:** ogni quota strettamente superiore a 3,00 è evidenziata in blu in tutti i mercati (1X2, Doppia Chance, Handicap, Over/Under, Goal/NoGoal e Segna Goal), anche quando selezionata; le quote esattamente a 3,00 restano normali.
+- **Importazione semplificata:** la schermata iniziale parte direttamente da “Importa il PDF Sisal (consigliato su Android)”. Rimossi l’area visibile di inserimento manuale e il collegamento per raggiungerla. I vecchi backup restano compatibili: il campo legacy del testo manuale viene conservato senza essere mostrato nell’interfaccia.
+- **Quote in rosso:** resta attiva la regola della v21, limitata alle coppie binarie riconosciute con entrambe le quote ≤ 2,00.
+- **Cache aggiornata:** release `sb-v22-20261030`.
 
 
 ## Novità versione 20 — controllo copertura minima e quote a rischio doppia
@@ -9,7 +12,7 @@
 - **Quote in rosso**: vengono evidenziati soltanto i mercati a due esiti riconosciuti (Under/Over 1,5, 2,5 e 3,5; Goal/NoGoal; Segna Goal Casa/Ospite) quando entrambe le quote sono pari o inferiori a 2,00. Non vengono marcati i mercati a tre esiti (1X2, Handicap, Doppia Chance), i mercati incompleti/duplicati o le coppie in cui almeno una quota supera 2,00. Il controllo è visivo e non blocca la selezione.
 - **Controllo automatico ritorno/spesa**: si aggiorna quando cambiano quote selezionate, filtri, modalità di puntata, importi o Bonus Multipla. Moltiplica la quota composta di ogni colonna per la puntata effettiva e aggiunge il bonus stimato secondo la regola interna; confronta il ritorno lordo minimo tra le colonne rimaste con la spesa totale effettiva. Verde significa che il ritorno teorico minimo di una colonna vincente è almeno pari alla spesa; rosso indica il contrario.
 - **Nessuna promessa di vincita**: il controllo non prevede che una colonna vinca e non conta l'eventuale vincita contemporanea di più colonne; segnala soltanto la copertura matematica del ritorno minimo calcolato alle quote correnti. Il bonus Sisal è una stima da verificare sul biglietto effettivo.
-- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v21-20261030`.
+- **Test e cache**: nuova utility di calcolo copertura riutilizzata anche dalla tabella generata; nuova suite per coppie a quota bassa, moltiplicatore, bonus, filtri e stato dell'interfaccia. Release `sb-v22-20261030`.
 
 ## Novità versione 19 — azzera selezioni senza perdere le quote importate
 - **Nuovo pulsante “Azzera quote”** tra “Genera sistema” e “Reset completo”: rimuove soltanto gli esiti selezionati per costruire il sistema. Partite e quote importate restano nel foglio e sono subito riutilizzabili; vengono conservati anche testo manuale, puntata e impostazioni. Il sistema generato precedente viene invalidato e non è più esportabile finché non si genera di nuovo.
@@ -100,19 +103,10 @@ Web app statica in HTML, CSS e JavaScript vanilla. Nessun backend o installazion
 2. Apri **Settings → Pages**.
 3. Seleziona **Deploy from a branch**, branch `main`, cartella `/ (root)`.
 4. Salva e attendi la pubblicazione.
-5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**: l'icona usa la stessa mascotte La(a)rfleeze già impiegata in Cammafà.
-6. Su Android, apri il collegamento **Apri / scarica PDF ufficiale Sisal**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
-7. In alternativa, incolla i dati nella sezione manuale, che resta sempre disponibile.
-8. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra formano una doppia anche tra mercati diversi; il valore numerico H dell’handicap è informativo e non cliccabile. Imposta i filtri e premi **Genera sistema**.
-9. Esporta CSV/testo oppure stampa la tabella.
-
-## Formato manuale
-Una partita per riga. Formato consigliato:
-
-`23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00`
-
-Oppure, senza data/ora e senza altri mercati: `Milan - Roma; 2.10; 3.20; 3.60`.
-Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I campi squadra separati da `;` vanno inseriti come `Casa; Trasferta`, senza mettere le due squadre in un unico campo dopo data/ora. Mercati opzionali supportati: `O2.5=`, `U2.5=`, `Goal=`, `NoGoal=`. Le quote accettano punto o virgola decimale.
+5. Apri l'URL GitHub Pages assegnato al repository. Per aggiungerla alla schermata Home di Android, apri il menu Chrome (⋮) e scegli **Installa app** oppure **Aggiungi a schermata Home**.
+6. Su Android, apri il collegamento **Quote Sisal per manifestazione**, scegli **Scarica**, torna all'app e seleziona il PDF salvato in Download/Scaricati. La lettura del file locale evita il blocco CORS sul download dal sito.
+7. Seleziona le quote cliccando direttamente la griglia: una quota verde è una fissa, due quote ambra formano una doppia anche tra mercati diversi; il valore numerico H dell’handicap è informativo e non cliccabile. Le quote superiori a 3,00 sono blu; le coppie binarie con entrambe le quote ≤ 2,00 sono rosse. Imposta i filtri e premi **Genera sistema**.
+8. Esporta CSV/testo oppure stampa la tabella.
 
 ## Limiti noti
 - La modalità consigliata su PC e Android è aprire il link diretto al Foglio Quote Sisal per Manifestazione, scaricare il PDF e selezionarlo dal dispositivo. Non viene più tentata l’importazione automatica via URL, evitando i problemi CORS. Il parser PDF è specializzato sul layout del bollettino Sisal: importa esclusivamente Serie A, usa un elenco modificabile dalla finestra “Gestisci elenco squadre Serie A” (una squadra per riga, supporta nomi composti e alias) e richiede tutte le 21 quote decimali nell'ordine della tabella. L’elenco base incluso è quello della Serie A 2026/27; la stagione del catalogo è centralizzata nel parser e da agosto appare un promemoria stagionale che resta visibile finché l’elenco non viene salvato o confermato. Le righe non riconosciute vengono scartate per evitare associazioni errate. Una diagnostica espandibile mostra righe esaminate, rifiuti, conteggio delle quote e duplicati.
@@ -122,8 +116,8 @@ Le prime tre quote numeriche dopo le squadre sono interpretate come 1, X, 2. I c
 - Se il file viene aperto con `file://`, alcuni browser possono limitare i moduli JavaScript. Per provarlo in locale usa un server statico oppure GitHub Pages.
 
 ## Test manuali suggeriti
-1. Inserisci `Milan - Roma; 2.10; 3.20; 3.60` e verifica che la partita venga caricata con quote 1X2.
-2. Aggiungi una seconda partita e clicca due quote in entrambe le righe (anche appartenenti a mercati diversi): il sistema deve produrre 4 colonne.
+1. Apri il link Sisal, scarica il PDF e selezionalo dal pannello di importazione. Verifica che vengano caricate le partite riconosciute di Serie A.
+2. Clicca due quote in due partite (anche appartenenti a mercati diversi): il sistema deve produrre 4 colonne.
 3. Con 10 doppie, il sistema deve produrre esattamente 1.024 colonne. Il generatore deve rifiutare 11 partite o più di 2 esiti su una partita variabile.
 4. Imposta un filtro dinamico su un esito presente nelle doppie e controlla che il contatore e la tabella si aggiornino. Gli esiti fissi sono esclusi dal catalogo perché presenti in tutte le colonne.
 5. Crea quattro doppie selezionando Over 2.5 e Under 2.5 in ognuna; imposta “Over 2.5 · Max = 3” e verifica che restino le colonne con non più di tre Over.
@@ -146,11 +140,11 @@ Premi “Gestisci elenco squadre Serie A” per aprire la finestra dedicata, poi
 I filtri sugli esiti sono generati dinamicamente in base alle selezioni delle partite doppie. Per ogni esito variabile compaiono “Min” e “Max”: contano quante volte l'esito appare in ogni colonna generata. Un campo vuoto è inattivo; se quattro doppie contengono Over 2.5 e Under 2.5, ad esempio, puoi impostare Over 2.5 `Max = 3` per eliminare le colonne con quattro Over. Il criterio agisce sull'esito esatto. Gli esiti delle partite fisse non vengono proposti come filtri perché sono presenti in tutte le colonne: impostare un limite incompatibile su un esito fisso non ridurrebbe utilmente il sistema e potrebbe azzerarlo. Sono stati rimossi “Soglia quote singole alte”, “Numero massimo di quote sopra soglia” e “Probabilità implicita minima (%)”. I filtri descrivono la composizione delle colonne, non predicono i risultati, e limiti troppo restrittivi possono comunque lasciare zero colonne.
 ## Test di regressione automatici
 
-Con Node.js 20 o successivo, esegui `npm test`. I test verificano formati manuali comuni e casi limite, i limiti strutturali del generatore, i conteggi dei filtri Over/Under, l'esclusione delle fisse dal catalogo dei filtri, i requisiti di stampa A4 e l'arresto del parsing ai confini della sezione Serie A (inclusa Serie D).
+Con Node.js 20 o successivo, esegui `npm test`. I test verificano anche i formati legacy del parser e i casi limite, i limiti strutturali del generatore, i conteggi dei filtri Over/Under, l'esclusione delle fisse dal catalogo dei filtri, i requisiti di stampa A4 e l'arresto del parsing ai confini della sezione Serie A (inclusa Serie D).
 
 
 ## Backup e ripristino JSON
-Nel pannello “Backup e ripristino delle impostazioni” si può esportare un file JSON contenente partite caricate, esiti selezionati, filtri dinamici, puntata, preferenza Bonus Multipla, tema, testo manuale, elenco squadre e stato della conferma stagionale. Per spostare i dati su un altro dispositivo, scarica il file, apri l'app sul nuovo dispositivo e seleziona “Ripristina da JSON”. Il ripristino chiede conferma e sostituisce le impostazioni locali; il file viene controllato prima di applicare i dati e viene rifiutato se ha un formato sconosciuto, contiene quote non valide o supera il limite di 30 partite caricate. Le colonne generate non vengono conservate: dopo il ripristino premi “Genera sistema” per ricalcolarle con le impostazioni importate. Conserva i backup in una posizione privata: possono contenere quote e combinazioni personali.
+Nel pannello “Backup e ripristino delle impostazioni” si può esportare un file JSON contenente partite caricate, esiti selezionati, filtri dinamici, puntata, preferenza Bonus Multipla, tema, elenco squadre e stato della conferma stagionale. Per spostare i dati su un altro dispositivo, scarica il file, apri l'app sul nuovo dispositivo e seleziona “Ripristina da JSON”. Il ripristino chiede conferma e sostituisce le impostazioni locali; il file viene controllato prima di applicare i dati e viene rifiutato se ha un formato sconosciuto, contiene quote non valide o supera il limite di 30 partite caricate. Le colonne generate non vengono conservate: dopo il ripristino premi “Genera sistema” per ricalcolarle con le impostazioni importate. Conserva i backup in una posizione privata: possono contenere quote e combinazioni personali.
 
 ## Installazione e controllo prima della generazione
 Il pulsante “Installa app” usa il prompt nativo se il browser lo mette a disposizione; altrimenti mostra le istruzioni per Chrome Android o Safari iOS. La disponibilità dipende dal browser e dalle condizioni di installazione del sito. Il service worker salva la shell locale dopo la prima visita online su HTTPS o localhost. Al primo accesso serve una connessione; link esterni, come il PDF Sisal, richiedono comunque Internet. Se una nuova versione viene pubblicata, la cache viene aggiornata con l’identificatore di rilascio.
@@ -161,7 +155,7 @@ Prima di generare, un controllo visuale rileva selezioni non collegate alle quot
 Il progetto include icone colorate dedicate (`app-icon-192.png`, `app-icon-512.png`, `app-icon-maskable-512.png` e `app-apple-touch-icon.png`) con bande laterali ridotte e mascotte più grande. Il logo nell’intestazione dell’app resta monocromatico a contorni; la favicon da 32 px usa il monogramma SB per restare leggibile. La pubblicazione deve mantenere tutti questi file e `sw.js` nella radice del sito accanto a `index.html`. Il service worker usa una cache versionata della shell locale; la prima visita richiede HTTPS o localhost e una connessione, mentre le risorse esterne restano disponibili solo online.
 
 ## Pulsante Info
-Il pulsante **ⓘ Info** in alto a destra apre una guida rapida con le istruzioni per importare il PDF Sisal o inserire quote manualmente, i limiti del generatore, i filtri di riduzione, l'esportazione, il backup JSON e l'installazione sulla schermata Home. La finestra si chiude con il pulsante di chiusura, facendo clic sullo sfondo o premendo Esc. Su schermi molto stretti il pulsante viene mostrato come icona per lasciare spazio al titolo.
+Il pulsante **ⓘ Info** in alto a destra apre una guida rapida con le istruzioni per importare il PDF Sisal, i limiti del generatore, i filtri di riduzione, l'esportazione, il backup JSON e l'installazione sulla schermata Home. La finestra si chiude con il pulsante di chiusura, facendo clic sullo sfondo o premendo Esc. Su schermi molto stretti il pulsante viene mostrato come icona per lasciare spazio al titolo.
 
 ## Gestione elenco squadre
 

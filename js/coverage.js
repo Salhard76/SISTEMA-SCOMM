@@ -23,6 +23,13 @@ function binaryMarketKey(outcome) {
  * contiene esattamente due esiti distinti e tutte e due le quote sono <= 2.00.
  * Non dipende dalle selezioni attive: segnala la coppia importata nel foglio.
  */
+/** Evidenzia in blu qualsiasi quota strettamente superiore a 3,00. */
+export function isHighQuote(outcome, threshold = 3) {
+  const rawOdd = outcome?.quota;
+  const odd = typeof rawOdd === 'string' ? Number(rawOdd.trim().replace(',', '.')) : Number(rawOdd);
+  return Number.isFinite(odd) && odd > threshold;
+}
+
 export function hasUnprofitableDoublePartner(outcome, outcomes, threshold = 2) {
   const marketKey = binaryMarketKey(outcome);
   if (!marketKey) return false;

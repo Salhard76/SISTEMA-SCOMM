@@ -8,20 +8,20 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Scommesse">
-  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sb-v21-20261030">
-  <link rel="icon" type="image/png" sizes="192x192" href="./app-icon-192.png?v=sb-v21-20261030">
-  <link rel="apple-touch-icon" sizes="180x180" href="./app-apple-touch-icon.png?v=sb-v21-20261030">
-  <link rel="manifest" href="./manifest.webmanifest?v=sb-v21-20261030">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=sb-v22-20261030">
+  <link rel="icon" type="image/png" sizes="192x192" href="./app-icon-192.png?v=sb-v22-20261030">
+  <link rel="apple-touch-icon" sizes="180x180" href="./app-apple-touch-icon.png?v=sb-v22-20261030">
+  <link rel="manifest" href="./manifest.webmanifest?v=sb-v22-20261030">
   <meta name="description" content="Sistema Scommesse Builder: crea sistemi sportivi, applica filtri ed esporta le colonne.">
   <meta name="author" content="SalHard">
   <title>Sistema Scommesse Builder</title>
-  <link rel="stylesheet" href="style.css?v=sb-v21-20261030">
+  <link rel="stylesheet" href="style.css?v=sb-v22-20261030">
   <style id="runtimePrintPageRule"></style>
-  <script type="module" src="app.js?v=sb-v21-20261030"></script>
+  <script type="module" src="app.js?v=sb-v22-20261030"></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sb-v21-20261030" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
+    <div class="brand"><img class="brand-mark brand-logo" src="./icon-192.png?v=sb-v22-20261030" width="48" height="48" alt="" aria-hidden="true"><div><h1>Sistema Scommesse Builder</h1><p>Costruisci, filtra, controlla.</p></div></div>
     <div class="header-actions">
       <button id="installApp" class="button secondary" type="button" aria-describedby="installStatus"><span aria-hidden="true">＋</span> <span id="installButtonLabel">Installa app</span></button>
       <button id="themeToggle" class="button secondary" type="button" aria-label="Cambia tema"><span aria-hidden="true">☾</span> <span class="theme-button-label">Tema</span></button>
@@ -36,14 +36,14 @@
     </div>
     <p id="infoIntro" class="info-intro">Guida essenziale per importare le quote, costruire il sistema e conservare le tue impostazioni.</p>
     <div class="info-sections">
-      <section><h3>1. Inserisci le partite</h3><p><strong>PDF Sisal:</strong> su PC e Android apri il link diretto al Foglio Quote per Manifestazione, scarica il bollettino e poi selezionalo da Download/Scaricati. In alternativa, usa l'area di inserimento manuale: una partita per riga.</p></section>
+      <section><h3>1. Importa il PDF Sisal</h3><p>Su PC e Android apri il link diretto al Foglio Quote per Manifestazione, scarica il bollettino e selezionalo dal dispositivo. L’inserimento manuale non è più presente nell’interfaccia.</p></section>
       <section><h3>2. Scegli gli esiti dal foglio quote</h3><p>Tocca direttamente una quota: una scelta verde è una <strong>fissa</strong>; due scelte ambra formano automaticamente una <strong>doppia</strong>, anche tra mercati diversi (per esempio 1 + X2 oppure 1 + Over 2.5). Tocca di nuovo una quota per deselezionarla. L’handicap numerico H è informativo e non cliccabile. Puoi caricare fino a 30 partite, ma <strong>selezionarne al massimo 10</strong>, con fino a <strong>2 esiti per partita, anche di mercati diversi</strong>; dieci doppie generano al massimo 1.024 colonne prima dei filtri.</p></section>
-      <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. Il pulsante <strong>Azzera quote</strong> cancella le selezioni e azzera anche i filtri dinamici; conserva partite, quote importate, testo manuale e impostazioni della puntata. <strong>Reset completo</strong> cancella invece le partite e le impostazioni della sessione. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
+      <section><h3>3. Riduci e genera</h3><p>I filtri dinamici si basano sugli esiti selezionati. I campi Min/Max vuoti non limitano; i limiti inseriti si applicano insieme. Il controllo preliminare segnala dati mancanti o incoerenti. Il pulsante <strong>Azzera quote</strong> cancella le selezioni e azzera anche i filtri dinamici; conserva partite, quote importate e impostazioni della puntata. <strong>Reset completo</strong> cancella invece le partite e le impostazioni della sessione. I filtri riducono le combinazioni, non prevedono i risultati.</p></section>
       <section><h3>4. Esporta e stampa</h3><p>Puoi esportare le colonne in CSV o testo, stampare le singole colonne oppure stampare il riepilogo integrale delle selezioni.</p></section>
       <section><h3>5. Backup e squadre</h3><p>Da “Backup e ripristino” esporta un JSON e conservalo fuori dal dispositivo. Il ripristino sostituisce le impostazioni locali dopo conferma. L'elenco squadre si può modificare; quello di riferimento incluso nell'app non è un aggiornamento live dal sito ufficiale.</p></section>
       <section><h3>6. Installa sulla schermata Home</h3><p>Su Android usa “Installa app” oppure il menu ⋮ di Chrome → “Installa app” / “Aggiungi a schermata Home”. Su iPhone: Safari → Condividi → “Aggiungi alla schermata Home”. Le opzioni disponibili dipendono dal browser.</p></section>
     </div>
-    <p class="info-responsible">Quote in rosso: appartengono a un mercato a due esiti (per esempio Under/Over o Goal/NoGoal) nel quale entrambe le quote sono pari o inferiori a 2,00. I mercati a tre esiti e le coppie con una quota superiore a 2,00 non vengono evidenziati. Il controllo copertura stima il ritorno lordo minimo per colonna vincente e lo confronta con la spesa totale: non garantisce che una colonna vinca. Le quote possono cambiare; imposta un budget sostenibile e gioca responsabilmente.</p>
+    <p class="info-responsible">Quote in rosso: vengono evidenziate soltanto le coppie dei mercati binari riconosciuti quando entrambe le quote sono pari o inferiori a 2,00. Quote in blu: ogni quota superiore a 3,00, in qualsiasi mercato e anche quando selezionata. Il controllo copertura stima il ritorno lordo minimo per colonna vincente e lo confronta con la spesa totale: non garantisce che una colonna vinca. Le quote possono cambiare; imposta un budget sostenibile e gioca responsabilmente.</p>
     <div class="info-author" aria-label="Autore dell'applicazione: SalHard">
       <span class="info-author-label">Realizzato da</span>
       <svg class="info-author-signature" viewBox="0 0 190 62" role="img" aria-labelledby="salhardSignatureTitle">
@@ -88,18 +88,10 @@
     <p class="help">Il pulsante automatico viene mostrato dal browser solo quando l’installazione è disponibile. L’app resta utilizzabile dal browser anche senza installarla.</p>
   </details>
   <main class="container">
-    <section class="panel" aria-labelledby="input-title">
-      <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="input-title">Inserisci le quote</h2></div><span class="step-number">01</span></div>
-      <section id="manualPanel" class="input-method-card manual-method" aria-labelledby="manual-title">
-        <h3 id="manual-title">Incolla le quote manualmente</h3>
-        <p class="help">Questa sezione resta sempre visibile: non devi cambiare scheda. Una partita per riga; fino a 30 partite caricate, massimo 10 selezionate e 2 esiti per partita. Formato: <code>23/10 20:45; Milan; Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85</code> oppure <code>Milan - Roma; 2.10; 3.20; 3.60</code>.</p>
-        <textarea id="manualInput" rows="5" spellcheck="false" autocomplete="off" placeholder="Milan - Roma; 2.10; 3.20; 3.60&#10;23/10 20:45; Napoli; Roma; 1.75; 3.40; 4.80; O2.5=1.80; U2.5=2.00"></textarea>
-        <div class="button-row"><button id="parseManual" class="button primary" type="button">Carica partite</button><button id="clearInput" class="button secondary" type="button">Svuota</button></div>
-      </section>
+    <section class="panel" aria-labelledby="pdf-title">
+      <div class="section-heading"><div><p class="eyebrow">PASSO 1</p><h2 id="pdf-title">Importa il PDF Sisal (consigliato su Android)</h2></div><span class="step-number">01</span></div>
       <section id="pdfPanel" class="input-method-card pdf-method" aria-labelledby="pdf-title">
-        <h3 id="pdf-title">Importa il PDF Sisal (consigliato su Android)</h3>
-        <p class="help">Apri il link diretto al PDF Sisal per manifestazione. Su Android, dopo aver aperto il PDF, scegli, <strong>Scarica</strong> quando compare la scelta “Apri in Notes o Scarica”, poi torna qui e seleziona il file nella cartella <strong>Download/Scaricati</strong>.</p>
-        <a class="button secondary full-width" href="#manualPanel">Vai a Incolla manualmente ↑</a>
+        <p class="help">Apri il link diretto al PDF Sisal per manifestazione. Su Android, dopo aver aperto il PDF, scegli <strong>Scarica</strong> quando compare la scelta “Apri in Notes o Scarica”, poi torna qui e seleziona il file nella cartella <strong>Download/Scaricati</strong>.</p>
         <a id="openSisalPdf" class="button primary full-width" href="https://landing.sisal.it/volantini/Scommesse_Sport/Quote/calcio%20base%20per%20manifestazione.pdf" target="_blank" rel="noopener noreferrer">Quote Sisal per manifestazione ↗</a>
         <p class="help">Apri il <strong>Foglio Quote — Calcio Base per Manifestazione</strong>, scaricalo sul dispositivo e poi selezionalo qui sotto.</p>
         <label for="pdfFile">Seleziona il PDF salvato sul dispositivo</label>
@@ -108,6 +100,7 @@
         <p class="help">Dal PDF vengono caricate solo le partite di Serie A riconosciute. L'app non tenta più di importare automaticamente il PDF via URL.</p>
         <details id="pdfDiagnostics" class="pdf-diagnostics" hidden><summary id="pdfDiagnosticsSummary">Diagnostica importazione PDF</summary><p id="pdfDiagnosticsText" class="help" aria-live="polite"></p></details>
       </section>
+      <textarea id="manualInput" hidden aria-hidden="true" tabindex="-1"></textarea>
       <div class="team-manager-launch">
         <button id="openTeamManager" class="button secondary full-width" type="button" aria-haspopup="dialog" aria-controls="teamDialog">⚙ Gestisci elenco squadre Serie A</button>
         <p class="help">L’anagrafica squadre e gli alias si modificano nella finestra dedicata.</p>
@@ -123,7 +116,7 @@
         <input id="backupFile" type="file" accept="application/json,.json" hidden>
         <p id="backupStatus" class="help" aria-live="polite">L’importazione sostituirà le impostazioni locali dopo una tua conferma.</p>
       </details>
-      <div id="status" class="status" role="status" aria-live="polite">Inserisci le partite per iniziare.</div>
+      <div id="status" class="status" role="status" aria-live="polite">Importa il PDF Sisal per iniziare.</div>
       <div id="matches" class="matches"></div>
       <div id="minimumCoverageCheck" class="minimum-coverage-check is-idle" role="status" aria-live="polite" aria-atomic="true">
         <span class="coverage-checkbox" aria-hidden="true">☐</span>

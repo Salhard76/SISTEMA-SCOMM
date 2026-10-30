@@ -1,22 +1,21 @@
-import { parseManualInput, parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v21-20261030';
-import { generateSystem } from './js/generator.js?v=sb-v21-20261030';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v21-20261030';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v21-20261030';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v21-20261030';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v21-20261030';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v21-20261030';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v21-20261030';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v21-20261030';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v21-20261030';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v21-20261030';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner } from './js/coverage.js?v=sb-v21-20261030';
+import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v22-20261030';
+import { generateSystem } from './js/generator.js?v=sb-v22-20261030';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v22-20261030';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v22-20261030';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v22-20261030';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v22-20261030';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v22-20261030';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v22-20261030';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v22-20261030';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v22-20261030';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v22-20261030';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v22-20261030';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
 const savedKey = 'sistema-scommesse-builder-v1';
 let filterUpdateTimeout = null;
 let stakeSaveTimeout = null;
-let manualInputSaveTimeout = null;
 let stakeRenderTimeout = null;
 let lastDynamicFilterSignature = null;
 const debouncedUpdateCounter = () => {
@@ -275,7 +274,7 @@ function getReviewedSeason() {
 function saveState() {
   try {
     localStorage.setItem(savedKey, JSON.stringify({
-      manualInput: $('manualInput').value,
+      manualInput: $('manualInput')?.value || '',
       stake: $('stake').value,
       stakeMode: $('stakeMode').value,
       systemBudget: $('systemBudget').value,
@@ -295,7 +294,7 @@ function restoreState() {
     // Il salvataggio locale è persistente ma non attendibile: usa la stessa
     // validazione del backup prima di assegnare dati a stato e interfaccia.
     const data = validateStoredState(raw);
-    $('manualInput').value = data.manualInput;
+    if ($('manualInput')) $('manualInput').value = data.manualInput || '';
     $('stake').value = data.stake;
     $('stakeMode').value = data.stakeMode;
     $('systemBudget').value = data.systemBudget;
@@ -326,7 +325,7 @@ function restoreState() {
 }
 function getBackupData() {
   return {
-    manualInput: $('manualInput').value,
+    manualInput: $('manualInput')?.value || '',
     stake: $('stake').value,
     stakeMode: $('stakeMode').value,
     systemBudget: $('systemBudget').value,
@@ -356,8 +355,7 @@ function downloadBackup() {
 function applyBackup(data) {
   clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
   clearTimeout(stakeSaveTimeout); stakeSaveTimeout = null;
-  clearTimeout(manualInputSaveTimeout); manualInputSaveTimeout = null;
-  clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
+    clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
   lastDynamicFilterSignature = null;
   // L’elenco viene scritto prima di modificare lo stato dell’interfaccia: se lo storage non è disponibile,
   // il ripristino si interrompe senza sostituire le partite correnti.
@@ -372,7 +370,7 @@ function applyBackup(data) {
   state.outcomeFilterLimits = data.outcomeFilterLimits;
   state.source = data.source || '';
   state.pdfDiagnostics = data.pdfDiagnostics || null;
-  $('manualInput').value = data.manualInput;
+  if ($('manualInput')) $('manualInput').value = data.manualInput || '';
   $('stake').value = data.stake;
   $('stakeMode').value = data.stakeMode === 'total-budget' ? 'total-budget' : 'per-column';
   $('systemBudget').value = data.systemBudget || '10.00';
@@ -479,10 +477,12 @@ function renderMatches() {
       const key = `${outcome.market}:${outcome.outcome}`;
       const className = selectedClass(match, key);
       const lowDoubleRisk = hasUnprofitableDoublePartner(outcome, match.esiti);
-      const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : ''].filter(Boolean).join(' ');
+      const highQuote = isHighQuote(outcome);
+      const buttonClasses = ['odds-cell', className, lowDoubleRisk ? 'odds-low-double-risk' : '', highQuote ? 'odds-high-quote' : ''].filter(Boolean).join(' ');
       const selectionLabel = match.selezionati?.length === 2 ? 'Doppia automatica' : 'Fissa automatica';
       const riskNotice = lowDoubleRisk ? ' · Coppia di mercato a due esiti: entrambe le quote sono pari o inferiori a 2,00' : '';
-      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', coppia binaria con entrambe le quote pari o inferiori a 2' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
+      const highQuoteNotice = highQuote ? ' · Quota superiore a 3,00' : '';
+      return `<td class="quote-cell"><button type="button" class="${buttonClasses}" data-match-id="${escapeHtml(match.id)}" data-outcome-key="${escapeHtml(key)}" aria-pressed="${className ? 'true' : 'false'}" aria-label="${escapeHtml(`${match.casa} - ${match.trasferta}: ${outcome.label}, quota ${formatQuota(outcome.quota)}${className ? `, selezionata come ${selectionLabel}` : ''}${lowDoubleRisk ? ', coppia binaria con entrambe le quote pari o inferiori a 2' : ''}${highQuote ? ', quota superiore a 3' : ''}`)}" title="${escapeHtml(`${outcome.label} · ${formatQuota(outcome.quota)}${riskNotice}${highQuoteNotice}`)}">${escapeHtml(formatQuota(outcome.quota))}</button></td>`;
     }).join('');
     const matchName = `${match.casa} – ${match.trasferta}`;
     const metaTitle = [match.data, match.ora, match.palinsesto || match.pal, match.avvenimento || match.avv].filter(Boolean).join(' · ');
@@ -498,7 +498,7 @@ function renderMatches() {
   }).join('');
   root.innerHTML = `<div class="quote-sheet-scroll" role="region" aria-label="Foglio quote selezionabile" tabindex="0"><table class="quote-sheet"><thead><tr>
     <th class="quote-team quote-fixed-head quote-team-head team1-head" rowspan="2">Squadra 1</th><th class="quote-team quote-fixed-head quote-team-head team2-head" rowspan="2">Squadra 2</th>${groupHeaders}<th class="quote-fixed-head quote-meta-col quote-meta-head quote-date-head" rowspan="2">Data</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-time-head" rowspan="2">Ora</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Pal.</th><th class="quote-fixed-head quote-meta-col quote-meta-head quote-code" rowspan="2">Avv.</th>
-    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati. Le quote in rosso appartengono a mercati a due esiti (Under/Over, Goal/NoGoal o Segna Goal) in cui entrambe le quote sono pari o inferiori a 2,00. I mercati a tre esiti e le coppie con almeno una quota superiore a 2,00 non vengono evidenziati.</p>`;
+    </tr><tr>${outcomeHeaders}</tr></thead><tbody>${rows}</tbody></table></div><p class="quote-sheet-help">Tocca una quota per selezionarla. Una quota attiva è una <strong>fissa</strong>; due quote formano automaticamente una <strong>doppia</strong>, anche se appartengono a mercati diversi (per esempio 1 + X2 o 1 + Over 2.5). Sono consentite al massimo due quote per partita. Tocca di nuovo una quota per deselezionarla. Scorri orizzontalmente per vedere tutti i mercati. Le quote in rosso appartengono a mercati binari riconosciuti in cui entrambe le quote sono pari o inferiori a 2,00; le quote superiori a 3,00 sono evidenziate in blu.</p>`;
   const scroller = root.querySelector('.quote-sheet-scroll');
   if (scroller && keepScroll) { scroller.scrollLeft = keepScroll.left; scroller.scrollTop = keepScroll.top; }
   if (focused) {
@@ -883,7 +883,7 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
     if (!serieA.length) {
       showPdfDiagnostics(diagnostics, 0);
       clearImportedMatches('Il PDF non contiene partite di Serie A riconosciute.');
-      status('PDF letto, ma non sono state trovate partite di Serie A. Le partite precedenti sono state rimosse; puoi caricare un altro PDF o inserire le quote manualmente.', 'error');
+      status('PDF letto, ma non sono state trovate partite di Serie A. Le partite precedenti sono state rimosse; puoi verificare il bollettino e selezionare un altro PDF.', 'error');
       return;
     }
     matches = serieA;
@@ -899,21 +899,7 @@ function loadMatches(matches, source, diagnostics = matches?.diagnostics || null
   renderMatches(); saveState();
   status(`${matches.length} di ${filteredFound} ${isPdfSource ? 'partite di Serie A' : 'partite'} caricate da ${source}${isPdfSource && filteredFound !== totalFound ? ` (filtrate da ${totalFound} partite riconosciute)` : ''}. Puoi selezionare al massimo ${MAX_MATCHES} partite, con ${MAX_CHOICES_PER_MATCH} scelte per partita.${filteredFound > MAX_LOADED_MATCHES ? ` Attenzione: ${filteredFound - MAX_LOADED_MATCHES} partite oltre il limite di ${MAX_LOADED_MATCHES} non sono state caricate.` : ''}`, filteredFound > MAX_LOADED_MATCHES ? 'warning' : 'success');
 }
-// Entrambe le modalità restano visibili: nessuna scheda da attivare su Android.
-$('parseManual').addEventListener('click', () => {
-  const matches = parseManualInput($('manualInput').value);
-  showPdfDiagnostics(null);
-  if (!matches.length) { status('Non ho riconosciuto partite valide. Usa: Casa - Trasferta; quota 1; quota X; quota 2; mercati opzionali come O2.5=1.90.', 'error'); return; }
-  loadMatches(matches, 'input manuale');
-});
-$('manualInput').addEventListener('input', () => {
-  clearTimeout(manualInputSaveTimeout);
-  manualInputSaveTimeout = setTimeout(saveState, 250);
-});
-$('clearInput').addEventListener('click', () => {
-  clearTimeout(manualInputSaveTimeout);
-  $('manualInput').value = ''; status('Testo svuotato.'); saveState();
-});
+// Importazione quote: il flusso dell’interfaccia parte dal PDF Sisal locale.
 $('pdfFile').addEventListener('change', async event => {
   showPdfDiagnostics(null);
   const file = event.target.files?.[0];
@@ -1251,10 +1237,9 @@ $('reset').addEventListener('click', () => {
   if (!confirm('Vuoi cancellare partite, filtri e sistema generato?')) return;
   clearTimeout(filterUpdateTimeout); filterUpdateTimeout = null;
   clearTimeout(stakeSaveTimeout); stakeSaveTimeout = null;
-  clearTimeout(manualInputSaveTimeout); manualInputSaveTimeout = null;
-  clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
+    clearTimeout(stakeRenderTimeout); stakeRenderTimeout = null;
   state.matches = []; state.source = ''; state.pdfDiagnostics = null; state.legacyAdjustedCount = 0; state.restoreNotice = '';
-  $('manualInput').value = ''; $('stake').value = '0.10'; $('stakeMode').value = 'per-column'; $('systemBudget').value = '10.00'; updateStakeModeVisibility();
+  if ($('manualInput')) $('manualInput').value = ''; $('stake').value = '0.10'; $('stakeMode').value = 'per-column'; $('systemBudget').value = '10.00'; updateStakeModeVisibility();
   state.outcomeFilterLimits = {};
   lastDynamicFilterSignature = null;
   try { localStorage.removeItem(savedKey); } catch { /* storage non disponibile */ }
@@ -1281,7 +1266,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v21-20261030');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v22-20261030');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
