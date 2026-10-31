@@ -77,6 +77,13 @@ test('UI V23: pannello copertura e indicatori ultima partita sono presenti', () 
   assert.match(pageJs, /odds-cover-suggested/);
   assert.match(pageJs, /getLastChronologicalMatch/);
 });
+
+test('Copertura UI: il pannello si aggiorna dopo la generazione e ogni ricalcolo della tabella', () => {
+  const renderTable = pageJs.match(/function renderTable\(\) \{[\s\S]*?\n\}\nfunction buildPrintTable/);
+  assert.ok(renderTable, 'renderTable deve essere individuabile');
+  assert.ok((renderTable[0].match(/renderSmartCoveragePanel\(\)/g) || []).length >= 3, 'il pannello va aggiornato nei rami normale, senza colonne e con budget non valido');
+  assert.match(pageJs, /\$\('generate'\)\.addEventListener\('click'[\s\S]*?state\.lastGenerated = true;[\s\S]*?renderTable\(\);/);
+});
 test('UI: Azzera quote è tra Genera sistema e Reset completo', () => {
   const generateIndex = pageHtml.indexOf('id="generate"');
   const clearIndex = pageHtml.indexOf('id="clearQuotes"');
@@ -262,9 +269,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v25-20261030/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v25-20261030/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v25-20261030/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v26-20261031/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v26-20261031/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v26-20261031/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -1098,7 +1105,7 @@ test('Release v23: versione ?v= unica in tutti i file e PDF.js incluso in vendor
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v25-20261030/);
+  assert.match(sw, /sb-v26-20261031/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);

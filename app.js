@@ -1,16 +1,16 @@
-import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v25-20261030';
-import { generateSystem } from './js/generator.js?v=sb-v25-20261030';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v25-20261030';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v25-20261030';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v25-20261030';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v25-20261030';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v25-20261030';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v25-20261030';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v25-20261030';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v25-20261030';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v25-20261030';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v25-20261030';
-import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, coverResultLabel } from './js/cover-bet.js?v=sb-v25-20261030';
+import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v26-20261031';
+import { generateSystem } from './js/generator.js?v=sb-v26-20261031';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v26-20261031';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v26-20261031';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v26-20261031';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v26-20261031';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v26-20261031';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v26-20261031';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v26-20261031';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v26-20261031';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v26-20261031';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v26-20261031';
+import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, coverResultLabel } from './js/cover-bet.js?v=sb-v26-20261031';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -814,12 +814,14 @@ function renderTable() {
     $('printTableWrap').innerHTML = '';
     const zeroCost = allocation.mode === 'total-budget' ? `Budget impostato: ${formatEuro(allocation.inputBudget || 0)} · Spesa effettiva: ${formatEuro(0)} · Residuo non utilizzato: ${formatEuro(allocation.residue || 0)}` : `Puntata totale considerata: ${formatEuro(0)}`;
     $('summary').textContent = `Colonne sviluppate: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne considerate: 0 · Colonne escluse dai filtri: ${state.rawColumns.length.toLocaleString('it-IT')} · ${zeroCost}.`;
+    renderSmartCoveragePanel();
     return;
   }
   if (!allocation.valid) {
     $('tableWrap').innerHTML = `<p class="empty-state">${escapeHtml(allocation.error)} Modifica il budget o i filtri e riprova.</p>`;
     $('printTableWrap').innerHTML = '';
     $('summary').textContent = `Colonne integrali: ${state.rawColumns.length.toLocaleString('it-IT')} · Colonne finali: ${cols.length.toLocaleString('it-IT')} · Budget non sufficiente per assegnare almeno 0,01 € a ogni colonna. Le esportazioni economiche sono disattivate finché la puntata non è valida.`;
+    renderSmartCoveragePanel();
     return;
   }
   const stake = allocation.perColumn;
@@ -845,6 +847,8 @@ function renderTable() {
   const rows = cols.slice(0, visibleCount).map((c, i) => `<tr><td data-label="Colonna n.">${c.id}</td><td data-label="Esiti selezionati">${c.esiti.map(e => `${escapeHtml(e.partita)}: ${escapeHtml(e.label)}`).join('<br>')}</td><td class="num" data-label="Quota totale">${formatQuota(c.quotaTotale)}</td><td class="num" data-label="Prob. implicita (con aggio)">${(100/c.quotaTotale).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Prob. stimata (senza aggio)">${(c.prob*100).toLocaleString('it-IT',{maximumFractionDigits:3})}%</td><td class="num" data-label="Bonus stimato">${bonusOn && bonuses[i] ? (bonuses[i]*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'%' : '—'}</td><td class="num" data-label="Ritorno lordo stimato">${formatEuro(returns[i])}</td><td class="num" data-label="Profitto teorico stimato">${formatEuro(returns[i]-stake)}</td></tr>`).join('');
   $('tableWrap').innerHTML = `<table class="results-table"><thead><tr><th>N°</th><th>Esiti selezionati</th><th>Quota totale</th><th>Prob. implicita (con aggio)</th><th>Prob. stimata (senza aggio)</th><th>Bonus stimato</th><th>Ritorno lordo stimato</th><th>Profitto teorico stimato</th></tr></thead><tbody>${rows}</tbody></table>${visibleCount < cols.length ? `<div class="table-more"><p>Mostrate ${visibleCount.toLocaleString('it-IT')} di ${cols.length.toLocaleString('it-IT')} colonne. CSV, testo e stampe contengono tutte le colonne.</p><div class="button-row"><button id="showMoreRows" class="button secondary" type="button">Mostra altre ${TABLE_PAGE_SIZE}</button><button id="showAllRows" class="button secondary" type="button">Mostra tutte (${cols.length.toLocaleString('it-IT')})</button></div></div>` : ''}`;
   $('printTableWrap').innerHTML = '';   // costruita solo quando serve (buildPrintTable): dimezza il DOM con 1.024 colonne
+  // Aggiorna anche il pannello copertura: prima restava fermo su 'Genera il sistema' dopo il clic su Genera.
+  renderSmartCoveragePanel();
 }
 function buildPrintTable() {
   const allCols = state.rawColumns;
@@ -1408,7 +1412,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v25-20261030');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v26-20261031');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
