@@ -473,3 +473,60 @@ body.info-dialog-fallback::after{content:"";position:fixed;inset:0;background:rg
 .coverage-scenarios small{grid-column:1/-1;color:var(--muted)}
 .coverage-best p,.coverage-alt{grid-column:1/-1;margin:.15rem 0;font-size:.82rem}
 .coverage-branches summary{cursor:pointer;font-weight:700;font-size:.85rem;margin:.3rem 0}
+
+
+/* V27 — copertura complementare ben distinguibile e controlli principali uniformi. */
+.odds-cell.odds-cover-suggested{
+  outline:2px solid #7047e8!important;outline-offset:-3px;
+  background:#e3d8ff!important;color:#35166f!important;
+  box-shadow:inset 0 0 0 1px #a78bfa!important;font-weight:950!important;
+}
+:root[data-theme="dark"] .odds-cell.odds-cover-suggested{
+  outline-color:#b99aff!important;background:#422779!important;color:#fff!important;
+  box-shadow:inset 0 0 0 1px #8b5cf6!important;
+}
+.coverage-exact-summary{margin:.65rem 0;padding:.7rem .8rem;border:1px solid #8b5cf6;border-left:5px solid #7047e8;border-radius:10px;background:#eee8ff;color:#321c64;font-size:.86rem}
+.coverage-exact-summary strong{font-weight:900}
+:root[data-theme="dark"] .coverage-exact-summary{background:#302044;border-color:#9b7aff;border-left-color:#b99aff;color:#f1eaff}
+
+/* Selettore PDF: area ampia, bordata e con comando interno a contrasto elevato. */
+.pdf-file-picker{margin:.55rem 0 .7rem;padding:.75rem .8rem;border:2px solid #2864db;border-radius:13px;background:linear-gradient(135deg,#eaf1ff,#f5f0ff);box-shadow:0 3px 12px rgba(40,100,219,.14)}
+.pdf-file-picker label{margin:0 0 .4rem;color:#1745a5;font-size:.82rem;font-weight:950;letter-spacing:.035em}
+.pdf-file-picker small{display:block;margin-top:.35rem;color:#415984;font-size:.72rem}
+#pdfFile.file-input{display:block;width:100%;min-height:50px;margin:.25rem 0 0;padding:.45rem .55rem;border:1px solid #91ace7;border-radius:9px;background:#fff;color:#182d52;font-size:16px}
+#pdfFile::file-selector-button{margin-right:.65rem;padding:.58rem .9rem;border:0;border-radius:7px;background:#205fe0;color:#fff;font:800 .86rem system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}
+#pdfFile::-webkit-file-upload-button{margin-right:.65rem;padding:.58rem .9rem;border:0;border-radius:7px;background:#205fe0;color:#fff;font:800 .86rem system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}
+#pdfFile:focus-visible{outline:3px solid #8b5cf6;outline-offset:3px}
+:root[data-theme="dark"] .pdf-file-picker{border-color:#8d7aff;background:linear-gradient(135deg,#202d52,#302044);box-shadow:0 3px 14px rgba(0,0,0,.2)}
+:root[data-theme="dark"] .pdf-file-picker label{color:#cfc2ff}
+:root[data-theme="dark"] .pdf-file-picker small{color:#c1c9e6}
+:root[data-theme="dark"] #pdfFile.file-input{border-color:#586da9;background:#182133;color:#f3f5ff}
+:root[data-theme="dark"] #pdfFile::file-selector-button,:root[data-theme="dark"] #pdfFile::-webkit-file-upload-button{background:#7654ee;color:#fff}
+
+/* I tre comandi che governano il sistema hanno sempre le stesse misure. */
+.generate-controls{grid-template-columns:minmax(165px,1.25fr) repeat(3,minmax(145px,1fr));align-items:stretch}
+.generate-controls>.button{width:100%;min-width:0;height:50px;min-height:50px;padding:.65rem .7rem;border-radius:10px;font-size:.9rem;font-weight:900;letter-spacing:.005em;white-space:nowrap}
+.generate-controls>.action-generate{background:linear-gradient(120deg,#16885e,#075d4a);border:1px solid #075d4a;color:#fff;box-shadow:0 3px 8px rgba(7,93,74,.18)}
+.generate-controls>.action-clear{background:#e8f0ff;border:1px solid #376bd1;color:#1748a8}
+.generate-controls>.action-reset{background:#fff0f1;border:1px solid #c43b4b;color:#a32232}
+.generate-controls>.action-clear:disabled{opacity:.46}
+:root[data-theme="dark"] .generate-controls>.action-clear{background:#1e3157;border-color:#7198ed;color:#d7e5ff}
+:root[data-theme="dark"] .generate-controls>.action-reset{background:#3a2025;border-color:#e17883;color:#ffc5ca}
+@media(max-width:800px){.generate-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:600px){
+  .generate-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+  .generate-controls>.button{height:48px;min-height:48px;padding:.55rem .35rem;font-size:.8rem;white-space:normal;line-height:1.15}
+  .pdf-file-picker{padding:.65rem .6rem}
+  #pdfFile.file-input{min-height:48px;padding:.35rem;font-size:16px}
+  #pdfFile::file-selector-button,#pdfFile::-webkit-file-upload-button{padding:.52rem .6rem;font-size:.8rem}
+}
+@media(max-width:360px){.generate-controls>.button{grid-column:1/-1;width:100%;height:46px;min-height:46px;font-size:.86rem}}
+
+/* Versione leggibile dentro la finestra Info. */
+.info-version{display:flex;align-items:center;gap:.55rem;margin:.7rem 1.1rem .15rem;padding:.5rem .7rem;border:1px solid #b5c8f3;border-radius:10px;background:#edf2ff;color:#263e75}
+.info-version span{font-size:.68rem;font-weight:900;letter-spacing:.08em}
+.info-version strong{display:grid;place-items:center;min-width:30px;height:30px;border-radius:8px;background:#285ed0;color:#fff;font-size:1rem}
+.info-version small{margin-left:auto;font-size:.72rem;color:#4e618c}
+:root[data-theme="dark"] .info-version{background:#202d50;border-color:#506ba8;color:#dce6ff}
+:root[data-theme="dark"] .info-version small{color:#c4d2f6}
+@media(max-width:600px){.info-version{margin:.55rem .8rem .1rem}}

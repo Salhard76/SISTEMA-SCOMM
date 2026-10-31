@@ -1,16 +1,16 @@
-import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v26-20261031';
-import { generateSystem } from './js/generator.js?v=sb-v26-20261031';
-import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v26-20261031';
-import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v26-20261031';
-import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v26-20261031';
-import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v26-20261031';
-import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v26-20261031';
-import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v26-20261031';
-import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v26-20261031';
-import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v26-20261031';
-import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v26-20261031';
-import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v26-20261031';
-import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, coverResultLabel } from './js/cover-bet.js?v=sb-v26-20261031';
+import { parseSisalPdf, SERIE_A_TEAMS, SERIE_A_TEAM_SEASON, getSerieATeamLines, setSerieATeamLines, resetSerieATeamLines } from './js/parser.js?v=sb-v27-20261031';
+import { generateSystem } from './js/generator.js?v=sb-v27-20261031';
+import { applyFilters, classifyColumns, collectVariableOutcomes, maxOutcomeCount, minOutcomeCount } from './js/filters.js?v=sb-v27-20261031';
+import { formatEuro, formatQuota, summarizeColumnRange } from './js/calculator.js?v=sb-v27-20261031';
+import { MAX_MATCHES, MAX_LOADED_MATCHES, MAX_CHOICES_PER_MATCH, MAX_SYSTEM_COLUMNS } from './js/config.js?v=sb-v27-20261031';
+import { exportCSV, exportText, printWithMode, stampaTabella, PRINT_COLUMNS_PER_PAGE, splitPrintRows } from './js/exporter.js?v=sb-v27-20261031';
+import { createBackupPayload, validateBackupPayload, validateStoredState } from './js/backup.js?v=sb-v27-20261031';
+import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from './js/selection.js?v=sb-v27-20261031';
+import { buildQuoteSheetGroups, matchesQuoteColumn } from './js/quote-sheet.js?v=sb-v27-20261031';
+import { fairProbabilities, isExclusiveSystem } from './js/probability.js?v=sb-v27-20261031';
+import { calculateStakeAllocation, formatEuroPrecise } from './js/stake.js?v=sb-v27-20261031';
+import { assessMinimumCoverage, estimateBonusFraction, hasUnprofitableDoublePartner, isHighQuote } from './js/coverage.js?v=sb-v27-20261031';
+import { findExactCoverCandidates, findExactCoverCandidatesForSelections, describeCoverOutcome, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, coverResultLabel } from './js/cover-bet.js?v=sb-v27-20261031';
 
 const $ = id => document.getElementById(id);
 const state = { matches: [], rawColumns: [], finalColumns: [], coverageColumns: [], lastGenerated: false, exclusive: false, outcomeFilterLimits: {}, restoreNotice: '', source: '', pdfDiagnostics: null, legacyAdjustedCount: 0 };
@@ -454,10 +454,14 @@ function getSmartCoverageContext() {
   if (!lastMatch) return null;
   const active = state.matches.filter(match => (match.selezionati || []).length > 0);
   const previousMatches = active.filter(match => match.id !== lastMatch.id);
-  const candidates = (lastMatch.selezionati || []).flatMap(key => {
-    const selected = lastMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key);
-    return selected ? findExactCoverCandidates(lastMatch, selected).map(candidate => ({ ...candidate, selected })) : [];
-  });
+  const selectedOutcomes = (lastMatch.selezionati || []).map(key =>
+    lastMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key)
+  ).filter(Boolean);
+  const collectiveCandidates = findExactCoverCandidatesForSelections(lastMatch, selectedOutcomes);
+  const branchMode = collectiveCandidates === null;
+  const candidates = branchMode
+    ? selectedOutcomes.flatMap(selected => findExactCoverCandidates(lastMatch, selected).map(candidate => ({ ...candidate, selected })))
+    : collectiveCandidates;
   const uniqueCandidates = [...new Map(candidates.map(item => [
     `${item.selected.market}:${item.selected.outcome}|${item.outcome.market}:${item.outcome.outcome}`, item
   ])).values()];
@@ -484,7 +488,7 @@ function getSmartCoverageContext() {
       bonusForColumn: column => estimateBonusFraction(column, $('sisalBonus')?.checked !== false)
     })
     : null;
-  return { lastMatch, previousMatches, candidates: uniqueCandidates, allocation, returns, allPreviousKnown, anyPreviousLost, best };
+  return { lastMatch, previousMatches, candidates: uniqueCandidates, branchMode, allocation, returns, allPreviousKnown, anyPreviousLost, best };
 }
 
 function renderSmartCoveragePanel() {
@@ -496,7 +500,7 @@ function renderSmartCoveragePanel() {
     root.innerHTML = '';
     return;
   }
-  const { lastMatch, previousMatches, candidates, returns, allocation, allPreviousKnown, anyPreviousLost, best } = context;
+  const { lastMatch, previousMatches, candidates, branchMode, returns, allocation, allPreviousKnown, anyPreviousLost, best } = context;
   const signedEuro = value => `${value > 0.004 ? '+' : ''}${formatEuro(value)}`;
   root.hidden = false;
   const statusRows = previousMatches.map(match => {
@@ -557,17 +561,27 @@ function renderSmartCoveragePanel() {
   } else if (!returns.length || !returns.some(item => item.grossReturn > 0)) {
     message = 'Con i risultati inseriti non risultano colonne vincenti in attesa dell’ultima partita.';
   } else {
-    message = 'Le partite precedenti risultano vincenti. Le puntate suggerite pareggiano il ritorno lordo tra l’esito selezionato e la sua controparte esatta.';
+    message = 'Le partite precedenti risultano vincenti. La copertura complementare è calcolata sui ritorni effettivi e cerca di migliorare il caso peggiore considerando anche spesa del sistema e puntata di copertura.';
   }
   const note = lastMatch.selezionati?.length > 1
-    ? 'Hai due esiti selezionati nell’ultima partita: ogni copertura mostrata protegge il relativo ramo. Se i due esiti appartengono a mercati diversi, non è detto che una singola puntata copra entrambi.'
-    : 'La copertura è facoltativa. Il calcolo considera il ritorno lordo delle colonne ancora vincenti, la puntata per colonna e il bonus Sisal impostato.';
+    ? (branchMode
+      ? 'Hai selezionato esiti appartenenti a mercati diversi: le controparti sono mostrate separatamente per ramo, perché non esiste un unico esito complementare. Non sommare automaticamente le puntate.'
+      : 'La copertura è il complemento dell’intera giocata base: non ripropone doppie chance che includono risultati già coperti. Esempio: base 1 + X oppure 1X -> copertura 2; base 2 -> copertura 1X; base X -> copertura 12; base 1 -> copertura X2.')
+    : 'La copertura è facoltativa. Il calcolo considera il ritorno netto delle colonne ancora vincenti, la quota complementare, la puntata per colonna e il bonus Sisal impostato.';
+  const complementarySummary = !branchMode && candidates.length && !best?.best
+    ? `<p class="coverage-exact-summary"><strong>Controparte complementare dell’intera giocata:</strong> ${escapeHtml(candidates[0].outcome.label)} @ ${escapeHtml(formatQuota(candidates[0].outcome.quota))}. Comprende soltanto i risultati non già coperti dalle selezioni di base.</p>`
+    : '';
+  const branchBlock = branchMode && candidates.length
+    ? `<div class="coverage-candidates">${bestBlock ? '<details class="coverage-branches"><summary>Coperture per singolo ramo (mercati diversi)</summary>' : '<strong>Quote di controparte per i singoli rami</strong>'}${candidateRows}${bestBlock ? '</details>' : ''}</div>`
+    : '';
   root.innerHTML = `<div class="smart-coverage-heading"><div><p class="eyebrow">FUNZIONE AGGIUNTIVA</p><h3>🛡 COPERTURA INTELLIGENTE</h3></div><span class="coverage-last-badge">ULTIMA PARTITA</span></div>
     <p class="smart-coverage-fixture"><strong>${escapeHtml(lastMatch.casa)} – ${escapeHtml(lastMatch.trasferta)}</strong><span>${escapeHtml([lastMatch.data, lastMatch.ora].filter(Boolean).join(' · '))}</span></p>
     ${previousMatches.length ? `<div class="coverage-results"><strong>Conferma i risultati effettivi delle partite precedenti</strong>${statusRows}</div>` : ''}
     <p class="smart-coverage-status" role="status">${escapeHtml(message)}</p>
     ${bestBlock ? `<div class="coverage-candidates">${bestBlock}</div>` : ''}
-    ${candidates.length ? `<div class="coverage-candidates">${bestBlock ? '<details class="coverage-branches"><summary>Coperture per singolo ramo (alternativa)</summary>' : '<strong>Quote di controparte disponibili</strong>'}${candidateRows}${bestBlock ? '</details>' : ''}</div>` : '<p class="help">Non è stata trovata una controparte esatta tra le quote importate per gli esiti selezionati nell’ultima partita.</p>'}
+    ${complementarySummary}
+    ${branchBlock}
+    ${!candidates.length ? '<p class="help">Non è stata trovata una controparte esatta tra le quote importate per gli esiti selezionati nell’ultima partita.</p>' : ''}
     <p class="smart-coverage-note">${escapeHtml(note)}</p>`;
 }
 
@@ -585,10 +599,16 @@ function renderMatches() {
   const focused = document.activeElement?.matches?.('button[data-outcome-key][data-match-id]')
     ? { matchId: document.activeElement.dataset.matchId, key: document.activeElement.dataset.outcomeKey } : null;
   const lastChronologicalMatch = getLastChronologicalMatch(state.matches);
-  const suggestedCoverKeys = new Set((lastChronologicalMatch?.selezionati || []).flatMap(key => {
-    const selected = lastChronologicalMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key);
-    return selected ? findExactCoverCandidates(lastChronologicalMatch, selected).map(item => `${item.outcome.market}:${item.outcome.outcome}`) : [];
-  }));
+  const lastSelectedOutcomes = (lastChronologicalMatch?.selezionati || []).map(key =>
+    lastChronologicalMatch.esiti?.find(item => `${item.market}:${item.outcome}` === key)
+  ).filter(Boolean);
+  const collectiveQuoteCovers = lastChronologicalMatch
+    ? findExactCoverCandidatesForSelections(lastChronologicalMatch, lastSelectedOutcomes)
+    : [];
+  const suggestedCoverList = collectiveQuoteCovers === null
+    ? lastSelectedOutcomes.flatMap(selected => findExactCoverCandidates(lastChronologicalMatch, selected))
+    : (collectiveQuoteCovers || []);
+  const suggestedCoverKeys = new Set(suggestedCoverList.map(item => `${item.outcome.market}:${item.outcome.outcome}`));
   const groups = buildQuoteSheetGroups(state.matches);
   const groupHeaders = groups.map(group => `<th class="quote-group" colspan="${group.columns.length}">${escapeHtml(group.label)}</th>`).join('');
   const quoteColumns = groups.flatMap(group => group.columns);
@@ -1412,7 +1432,7 @@ if (state.matches.length) {
 // Cache offline dell'app shell: non memorizza né inventa quote online. Richiede HTTPS o localhost.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   const serviceWorkerUrl = new URL('./sw.js', import.meta.url);
-  serviceWorkerUrl.searchParams.set('v', 'sb-v26-20261031');
+  serviceWorkerUrl.searchParams.set('v', 'sb-v27-20261031');
   // Il nuovo service worker prende il controllo subito, ma la pagina aperta resta con il codice vecchio: avvisa.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

@@ -71,6 +71,40 @@ export function findExactCoverCandidates(match, selectedOutcome) {
   return [...new Map(pairs.map(item => [outcomeKey(item.outcome), item])).values()];
 }
 
+/**
+ * Trova la copertura complementare dell'intera giocata base dell'ultima partita.
+ * Restituisce null quando le selezioni appartengono a famiglie diverse (in quel caso
+ * l'interfaccia può mantenere i suggerimenti separati per ramo). Se la famiglia è unica,
+ * restituisce solo quote che coprono esattamente gli esiti non già compresi nella base.
+ * Esempi 1X2: base 1 -> X2; base X -> 12; base 2 -> 1X; base 1 + X -> 2; base 1X -> 2.
+ */
+export function findExactCoverCandidatesForSelections(match, selectedOutcomes) {
+  if (!match || !Array.isArray(selectedOutcomes) || !selectedOutcomes.length) return null;
+  const described = selectedOutcomes.map(describeCoverOutcome);
+  if (described.some(item => !item) || new Set(described.map(item => item.family)).size !== 1) return null;
+  const { family, results } = described[0];
+  const alreadyCovered = new Set(described.flatMap(item => item.covers));
+  const needed = results.filter(result => !alreadyCovered.has(result));
+  if (!needed.length) return [];
+  const pairs = [];
+  for (const item of match.esiti ?? []) {
+    const candidate = describeCoverOutcome(item);
+    if (!candidate || candidate.family !== family || Number(item.quota) <= 1) continue;
+    if (candidate.covers.length !== needed.length || !needed.every(result => candidate.covers.includes(result))) continue;
+    pairs.push({
+      outcome: item,
+      exact: true,
+      reason: 'Copertura complementare: comprende soltanto gli esiti non già selezionati',
+      selected: {
+        market: selectedOutcomes.map(selection => selection.market).filter(Boolean).join(' + '),
+        outcome: selectedOutcomes.map(selection => selection.outcome).filter(Boolean).join(' + '),
+        label: selectedOutcomes.map(selection => selection.label || selection.outcome).filter(Boolean).join(' + ')
+      }
+    });
+  }
+  return [...new Map(pairs.map(item => [outcomeKey(item.outcome), item])).values()];
+}
+
 /** Ordina le partite selezionate per data e ora locale del palinsesto. */
 export function getLastChronologicalMatch(matches) {
   const active = (Array.isArray(matches) ? matches : []).filter(match => (match.selezionati ?? []).length > 0);
@@ -157,6 +191,11 @@ export function calculateBestSingleCover({ columns, previousMatches, lastMatch, 
   const described = selected.map(describeCoverOutcome);
   if (!described.length || described.some(item => !item) || new Set(described.map(item => item.family)).size !== 1) return null;
   const { family, results } = described[0];
+  // La copertura è il complemento della giocata base nel suo insieme, non una doppia
+  // chance che ripete uno dei risultati già protetti. Per esempio base 1 + X -> solo 2.
+  const alreadyCovered = new Set(described.flatMap(item => item.covers));
+  const requiredCover = results.filter(result => !alreadyCovered.has(result));
+  if (!requiredCover.length) return null;
   const live = liveColumnsFor(columns, previousMatches, lastMatch);
   if (!live) return null;
   const systemReturn = Object.fromEntries(results.map(result => [result, 0]));
@@ -174,7 +213,9 @@ export function calculateBestSingleCover({ columns, previousMatches, lastMatch, 
   for (const item of lastMatch.esiti ?? []) {
     const info = describeCoverOutcome(item);
     const odds = Number(item.quota);
-    if (!info || info.family !== family || !(odds > 1) || info.covers.length >= results.length) continue;
+    if (!info || info.family !== family || !(odds > 1)) continue;
+    // Non suggerire X2/1X/12 quando comprendono anche esiti già inclusi nella doppia base.
+    if (info.covers.length !== requiredCover.length || !requiredCover.every(result => info.covers.includes(result))) continue;
     const inside = Math.min(...info.covers.map(result => without[result]));
     const outside = Math.min(...results.filter(result => !info.covers.includes(result)).map(result => without[result]));
     if (!(outside > inside + 1e-9)) continue;                    // coprire non migliora il caso peggiore
@@ -186,13 +227,17 @@ export function calculateBestSingleCover({ columns, previousMatches, lastMatch, 
       Math.floor(exactCents) / 100,
       Math.ceil(exactCents) / 100
     ])].filter(value => value > 0);
+    let bestForQuote = null;
     for (const coverStake of centCandidates) {
       const nets = Object.fromEntries(results.map(result => [
         result, without[result] - coverStake + (info.covers.includes(result) ? coverStake * odds : 0)
       ]));
       const worst = Math.min(...Object.values(nets));
-      if (worst > worstWithout + 0.005) options.push({ outcome: item, odds, stake: coverStake, covers: info.covers, nets, worst });
+      if (worst > worstWithout + 0.005 && (!bestForQuote || worst > bestForQuote.worst)) {
+        bestForQuote = { outcome: item, odds, stake: coverStake, covers: info.covers, nets, worst };
+      }
     }
+    if (bestForQuote) options.push(bestForQuote);
   }
   options.sort((a, b) => b.worst - a.worst || a.stake - b.stake);
   return { family, results, systemReturn, spend, without, worstWithout, best: options[0] ?? null, alternatives: options.slice(1, 3) };

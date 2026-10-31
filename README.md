@@ -1,5 +1,12 @@
 # Sistema Scommesse Builder
 
+## v27 — 31 ottobre 2026 — Copertura complementare corretta e aggiornamento grafico
+- **Regola della copertura 1X2:** il suggerimento è il complemento esatto dell'intera base, non una doppia chance che ripete esiti già selezionati. Base 1 → X2; base X → 12; base 2 → 1X; base 1 + X oppure doppia chance 1X → soltanto 2. Le stesse regole valgono quando la base è formata da due esiti distinti dello stesso mercato.
+- **Mercati diversi:** se nell'ultima partita le selezioni appartengono a famiglie diverse, restano visibili le controparti separate per ramo; non viene presentata una copertura unica non dimostrabile.
+- **Evidenziazione:** la sola quota complementare viene evidenziata con sfondo lilla/blu elettrico, distinto dalle quote selezionate e dalle quote alte.
+- **Interfaccia:** selettore PDF evidenziato; i pulsanti Genera sistema, Azzera quote e Reset completo hanno dimensioni uniformi e stili coerenti. In Info è riportata la versione 27 e la regola di copertura.
+- **Cache e test:** release `sb-v27-20261031`; test di regressione ampliati per tutte le mappature 1X2 e doppia chance. Tutti i **99 test di regressione** passano con `npm test`.
+
 ## v26 — 31 ottobre 2026 — Aggiornamento immediato della copertura
 - **Pannello aggiornato dopo Genera sistema**: corretto un difetto dell’interfaccia. Dopo la generazione, il foglio colonne veniva aggiornato ma il pannello COPERTURA INTELLIGENTE restava sul messaggio “Genera il sistema…”. Ora il pannello ricalcola subito ritorni residui, copertura consigliata e scenari; si aggiorna anche quando cambiano puntata, bonus o filtri.
 - **Aggiornamento nei casi limite**: il pannello viene rinfrescato anche se i filtri azzerano le colonne o se il budget non consente la puntata minima.
@@ -7,7 +14,7 @@
 
 ## v25 — 30 ottobre 2026 — Puntata ottimizzata al centesimo
 - **Copertura più precisa**: per ogni quota candidata vengono confrontati il centesimo inferiore e quello superiore rispetto alla puntata teorica di pareggio. Viene scelta la puntata che massimizza davvero il caso peggiore dopo l'arrotondamento monetario.
-- **Test**: aggiunta una regressione in cui il centesimo superiore migliora il risultato rispetto al normale arrotondamento; 95 test complessivi. Release `sb-v26-20261031`.
+- **Test**: aggiunta una regressione in cui il centesimo superiore migliora il risultato rispetto al normale arrotondamento; 95 test complessivi. Release `sb-v25-20261030`.
 
 ## v24 — 30 ottobre 2026 — Copertura consigliata sul risultato netto
 - **Copertura consigliata**: per ogni possibile risultato finale dell'ultima partita il pannello calcola il netto = ritorno del sistema − spesa del sistema − puntata di copertura (+ vincita della copertura se comprende quel risultato) e sceglie, tra le quote disponibili della stessa famiglia (1X2 + Doppia Chance, oppure un mercato binario), la puntata che massimizza il **caso peggiore**. Mostra la puntata, il netto per ogni risultato con e senza copertura e le due migliori alternative.
@@ -15,7 +22,7 @@
 - **Netto reale nelle schede per ramo**: oltre al «ritorno bilanciato» (prima della spesa del sistema) compare il risultato netto dopo la spesa del sistema; se su un ramo non c'è nessuna colonna viva la scheda dice «Non necessaria» invece di «In attesa».
 - **Controparti anche con quote scritte a mano** (Over 2.5/Under 2.5, Goal/NoGoal): prima non ne veniva trovata nessuna perché i nomi di mercato differiscono da quelli del PDF. Nell'interfaccia attuale l'inserimento manuale non c'è più; vale per sessioni salvate e backup.
 - **Limiti**: la copertura è facoltativa, non garantisce un risultato positivo (il caso peggiore può restare negativo), non considera limiti o puntate minime del bookmaker; la puntata è arrotondata al centesimo; se nell'ultima partita ci sono esiti di mercati diversi viene mostrato solo il calcolo per ramo. Il bonus Sisal è una stima.
-- **Test**: 5 nuovi (94 in tutto), compresa la verifica a forza bruta. Release `sb-v26-20261031`.
+- **Test**: 5 nuovi (94 in tutto), compresa la verifica a forza bruta. Release `sb-v24-20261030`.
 
 ## v23 — 30 ottobre 2026 — Copertura intelligente
 
@@ -25,7 +32,7 @@
 - **Calcolo della copertura:** dopo la generazione del sistema, le colonne vengono filtrate in base agli esiti effettivi registrati. Per ogni controparte esatta viene calcolata la puntata che pareggia il ritorno lordo dei due scenari (`ritorno da proteggere / quota di copertura`), includendo la stima del Bonus Multipla attivo.
 - **Trasparenza sui limiti:** se sono stati selezionati due mercati diversi nell’ultima partita, ogni proposta copre il relativo ramo e non viene presentata come copertura totale automatica. La copertura è facoltativa e non garantisce un risultato positivo.
 - **Persistenza:** gli esiti effettivi confermati vengono conservati nei salvataggi locali e nei backup JSON; cambiare le selezioni azzera la conferma relativa a quella partita.
-- **Test e cache:** test aggiunti per complementi esatti, ordinamento cronologico, risultati precedenti, ritorno residuo e puntata suggerita. Release `sb-v26-20261031`.
+- **Test e cache:** test aggiunti per complementi esatti, ordinamento cronologico, risultati precedenti, ritorno residuo e puntata suggerita. Release `sb-v23-20261030`.
 
 ## Novità versione 20 — controllo copertura minima e quote a rischio doppia
 - **Azzera quote azzera anche i filtri dinamici** (per esempio Min/Max su X, Over o Goal). Conserva le partite, le quote importate, il testo manuale e le impostazioni di puntata. Se non ci sono selezioni ma restano filtri impostati, il pulsante resta disponibile per cancellarli.

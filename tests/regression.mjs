@@ -12,7 +12,7 @@ import { MAX_LOADED_MATCHES } from '../js/config.js';
 import { createBackupPayload, validateBackupPayload, validateStoredState, BACKUP_FORMAT } from '../js/backup.js';
 import { normalizeMatchSelection, normalizeMatchList, toggleMatchOutcome, clearMatchSelections, selectionMarketKey } from '../js/selection.js';
 import { buildQuoteSheetGroups, flattenQuoteSheetColumns, matchesQuoteColumn } from '../js/quote-sheet.js';
-import { findExactCoverCandidates, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, describeCoverOutcome } from '../js/cover-bet.js';
+import { findExactCoverCandidates, findExactCoverCandidatesForSelections, getLastChronologicalMatch, calculateLiveReturns, calculateCoverStake, calculateBestSingleCover, describeCoverOutcome } from '../js/cover-bet.js';
 
 // I test async venivano lanciati senza await: un fallimento compariva dopo il "✓" (o mai).
 // Ora si accodano e si eseguono in sequenza, attendendo ciascuno.
@@ -269,9 +269,9 @@ test('Icone app: risorse colorate, favicon outline e logo stampa presenti', () =
   for (const path of ['../icon-512.png', '../icon-192.png', '../icon-maskable-512.png', '../apple-touch-icon.png', '../favicon-32.png']) {
     assert.ok(existsSync(new URL(path, import.meta.url)), `icona mancante: ${path}`);
   }
-  assert.match(pageHtml, /icon-192\.png\?v=sb-v26-20261031/);
-  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v26-20261031/);
-  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v26-20261031/);
+  assert.match(pageHtml, /icon-192\.png\?v=sb-v27-20261031/);
+  assert.match(pageHtml, /app-icon-192\.png\?v=sb-v27-20261031/);
+  assert.match(pageHtml, /app-apple-touch-icon\.png\?v=sb-v27-20261031/);
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
   assert.ok(manifest.icons.some(icon => icon.src.startsWith('app-icon-maskable-512.png') && icon.purpose === 'maskable'));
   for (const path of ['../app-icon-192.png', '../app-icon-512.png', '../app-icon-maskable-512.png', '../app-apple-touch-icon.png']) assert.ok(existsSync(new URL(path, import.meta.url)), `icona app mancante: ${path}`);
@@ -1105,7 +1105,7 @@ test('Release v23: versione ?v= unica in tutti i file e PDF.js incluso in vendor
   for (const file of files) for (const m of readFileSync(new URL(file, import.meta.url), 'utf8').matchAll(/\?v=([\w-]+)/g)) versions.add(m[1]);
   assert.equal(versions.size, 1, `Versioni diverse trovate: ${[...versions].join(', ')}`);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /sb-v26-20261031/);
+  assert.match(sw, /sb-v27-20261031/);
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.min.js', import.meta.url)));
   assert.ok(existsSync(new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url)));
   assert.match(pageJs, /new URL\('\.\/vendor\/pdfjs', document\.baseURI\)/);
@@ -1212,6 +1212,39 @@ function coverScenario(lastSelection) {
   const { colonne } = generateSystem(events);
   return { A, B, C, colonne, stake: 5, spend: 5 * colonne.length };
 }
+test('Copertura base 1X2: suggerisce soltanto il complemento dell’intera selezione', () => {
+  const match = { esiti: [
+    coverOutcome('Esito Finale', '1', 1.45), coverOutcome('Esito Finale', 'X', 4.50), coverOutcome('Esito Finale', '2', 6.50),
+    coverOutcome('Doppia Chance', '1X', 1.20), coverOutcome('Doppia Chance', 'X2', 2.80), coverOutcome('Doppia Chance', '12', 1.35)
+  ] };
+  const pick = outcome => match.esiti.find(item => item.market === 'Esito Finale' && item.outcome === outcome);
+  const only = selections => findExactCoverCandidatesForSelections(match, selections).map(item => item.outcome.outcome);
+  assert.deepEqual(only([pick('2')]), ['1X'], 'base 2 -> copertura 1X');
+  assert.deepEqual(only([pick('X')]), ['12'], 'base X -> copertura 12');
+  assert.deepEqual(only([pick('1')]), ['X2'], 'base 1 -> copertura X2');
+  assert.deepEqual(only([pick('1'), pick('X')]), ['2'], 'base 1 + X -> soltanto 2, non 1X/X2/12');
+  const base1x = match.esiti.find(item => item.market === 'Doppia Chance' && item.outcome === '1X');
+  const baseX2 = match.esiti.find(item => item.market === 'Doppia Chance' && item.outcome === 'X2');
+  const base12 = match.esiti.find(item => item.market === 'Doppia Chance' && item.outcome === '12');
+  assert.deepEqual(only([base1x]), ['2'], 'base Doppia Chance 1X -> soltanto 2');
+  assert.deepEqual(only([baseX2]), ['1'], 'base Doppia Chance X2 -> soltanto 1');
+  assert.deepEqual(only([base12]), ['X'], 'base Doppia Chance 12 -> soltanto X');
+  assert.equal(findExactCoverCandidatesForSelections(match, [pick('1'), coverOutcome('Under/Over 2.5', 'O 2.5', 1.9)]), null,
+    'mercati diversi mantengono la modalità separata per ramo');
+});
+
+test('Copertura calcolata: una Doppia Chance 1X come base viene coperta soltanto dal 2', () => {
+  const last = coverMatch('last', '24/10', '20.45', [
+    coverOutcome('Esito Finale', '1', 1.45), coverOutcome('Esito Finale', 'X', 4.50), coverOutcome('Esito Finale', '2', 6.50),
+    coverOutcome('Doppia Chance', '1X', 1.10), coverOutcome('Doppia Chance', 'X2', 2.80), coverOutcome('Doppia Chance', '12', 1.35)
+  ], ['Doppia Chance:1X']);
+  const columns = [{ quotaTotale: 12, esiti: [{ eventId: 'last', market: 'Doppia Chance', outcome: '1X' }] }];
+  const result = calculateBestSingleCover({ columns, previousMatches: [], lastMatch: last, perColumnStake: 1, totalSpend: 1, bonusForColumn: () => 0 });
+  assert.equal(result.best.outcome.outcome, '2');
+  assert.deepEqual(result.best.covers, ['2']);
+  assert.equal(result.alternatives.length, 0);
+});
+
 test('Copertura: con quote scritte a mano (Over/Under, Goal/NoGoal) si trovano le controparti', () => {
   const [match] = parseManualInput('Milan - Roma; 2.10; 3.20; 3.60; O2.5=1.90; U2.5=1.85; Goal=1.75; NoGoal=2.00');
   const find = (market, outcome) => match.esiti.find(e => e.market === market && e.outcome === outcome);
@@ -1233,17 +1266,19 @@ test('Copertura singola: con due esiti nell’ultima partita copre l’esito rim
   const { A, B, C, colonne, stake, spend } = coverScenario(['Esito Finale:1', 'Esito Finale:X']);
   const result = calculateBestSingleCover({ columns: colonne, previousMatches: [A, B], lastMatch: C, perColumnStake: stake, totalSpend: spend, bonusForColumn: () => 0 });
   assert.equal(result.best.outcome.outcome, '2');
-  // Nessuna puntata singola su nessuna quota dell'ultima partita può fare meglio del caso peggiore trovato.
-  const covers = { '1': ['1'], 'X': ['X'], '2': ['2'], '1X': ['1', 'X'], 'X2': ['X', '2'], '12': ['1', '2'] };
-  const base = { '1': result.systemReturn['1'], 'x': result.systemReturn.x, '2': result.systemReturn['2'] };
+  // Con base 1 + X la sola copertura ammessa è il risultato 2: non vanno
+  // rimesse in gioco doppie chance (X2/1X) che includono esiti già protetti.
+  assert.equal(result.best.outcome.outcome, '2');
+  assert.deepEqual(result.best.covers, ['2']);
+  assert.equal(result.alternatives.length, 0);
+  const base = { '1': result.systemReturn['1'], 'X': result.systemReturn.x, '2': result.systemReturn['2'] };
+  const expected = C.esiti.find(item => item.market === 'Esito Finale' && item.outcome === '2');
   let brute = -Infinity;
-  for (const item of C.esiti) for (let c = 0; c <= 200; c += 0.01) {
-    const worst = Math.min(...['1', 'X', '2'].map(r => base[r.toLowerCase()] - spend - c + (covers[item.outcome].includes(r) ? c * item.quota : 0)));
+  for (let c = 0; c <= 200; c += 0.01) {
+    const worst = Math.min(...['1', 'X', '2'].map(r => base[r] - spend - c + (r === '2' ? c * expected.quota : 0)));
     brute = Math.max(brute, worst);
   }
-  assert.ok(result.best.worst >= brute - 0.01, `trovato ${result.best.worst} < forza bruta ${brute}`);
-  // Le puntate "per ramo" della versione 23 sono peggiori della copertura singola.
-  assert.ok(result.alternatives.every(item => item.worst < result.best.worst));
+  assert.ok(Math.abs(result.best.worst - brute) < 0.011, `proposta ${result.best.worst} diversa dall'ottimo complementare ${brute}`);
 });
 test('Copertura singola: sceglie il centesimo che massimizza davvero il caso peggiore', () => {
   const esiti = [
@@ -1262,11 +1297,13 @@ test('Copertura singola: sceglie il centesimo che massimizza davvero il caso peg
     { quotaTotale: 233.9545032 / perColumnStake, esiti: [{ eventId: 'C', market: 'Esito Finale', outcome: 'X' }] }
   ];
   const result = calculateBestSingleCover({ columns, previousMatches: [], lastMatch, perColumnStake, totalSpend, bonusForColumn: () => 0 });
-  assert.equal(result.best.outcome.outcome, 'X2');
-  assert.equal(result.best.stake, 23.23);
-  assert.ok(Math.abs(result.best.worst - 92.3526576) < 1e-9);
-  const roundedDownWorst = Math.min(...result.results.map(r => result.without[r] - 23.22 + (result.best.covers.includes(r) ? 23.22 * 5.75 : 0)));
-  assert.ok(result.best.worst > roundedDownWorst);
+  assert.equal(result.best.outcome.outcome, '2', 'la base 1 + X ammette soltanto la copertura sul 2');
+  assert.equal(result.best.stake, 54.07, 'sceglie il centesimo superiore quando migliora il caso peggiore');
+  assert.ok(Math.abs(result.best.stake * 100 - Math.round(result.best.stake * 100)) < 1e-9, 'puntata al centesimo');
+  const roundedDown = result.best.stake - 0.01;
+  const coverOdds = result.best.outcome.quota;
+  const downWorst = Math.min(...result.results.map(r => result.without[r] - roundedDown + (result.best.covers.includes(r) ? roundedDown * coverOdds : 0)));
+  assert.ok(result.best.worst > downWorst, 'il centesimo scelto migliora il caso peggiore rispetto al centesimo inferiore');
 });
 
 test('Copertura singola: null con mercati diversi nell’ultima partita o risultati non registrati; nessun consiglio se non migliora', () => {
@@ -1282,8 +1319,23 @@ test('Copertura singola: null con mercati diversi nell’ultima partita o risult
 test('UI V24: pannello mostra la copertura consigliata con netti per scenario e schede per ramo ripiegate', () => {
   assert.match(pageJs, /calculateBestSingleCover\(\{/);
   assert.match(pageJs, /COPERTURA CONSIGLIATA/);
-  assert.match(pageJs, /Coperture per singolo ramo \(alternativa\)/);
+  assert.match(pageJs, /Coperture per singolo ramo \(mercati diversi\)/);
+  assert.match(pageJs, /findExactCoverCandidatesForSelections/);
+  assert.match(pageJs, /const branchMode = collectiveCandidates === null/);
   assert.match(pageJs, /Risultato netto dopo la spesa del sistema/);
+});
+
+test('V27 UI: numero versione in Info, selettore PDF marcato e pulsanti omogenei', () => {
+  assert.match(pageHtml, /VERSIONE APP<\/span><strong>27<\/strong>/);
+  assert.match(pageHtml, /La copertura dell’ultima partita è il complemento esatto/);
+  assert.match(pageHtml, /pdf-file-picker/);
+  assert.match(pageHtml, /id="generate" class="button primary action-generate"/);
+  assert.match(pageHtml, /id="clearQuotes" class="button secondary action-clear"/);
+  assert.match(pageHtml, /id="reset" class="button danger action-reset"/);
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.odds-cell\.odds-cover-suggested[\s\S]*?background:#e3d8ff!important/);
+  assert.match(css, /#pdfFile::file-selector-button[\s\S]*?background:#205fe0/);
+  assert.match(css, /\.generate-controls>\.button[\s\S]*?height:50px;min-height:50px/);
 });
 
 for (const { name, fn } of queue) {
